@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
 import { OnlinePlayersPanel } from '@/components/online-players-panel'
+import { MobilePlayersSheet } from '@/components/mobile-players-sheet'
 import { ConsolePanel } from '@/components/console-panel'
 import { 
   ServerInfoCard, 
@@ -19,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 export function Dashboard() {
   const [activeSection, setActiveSection] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [playersSheetOpen, setPlayersSheetOpen] = useState(false)
 
   const renderContent = () => {
     switch (activeSection) {
@@ -94,7 +96,10 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <DashboardHeader onMenuClick={() => setSidebarOpen(true)} />
+      <DashboardHeader 
+        onMenuClick={() => setSidebarOpen(true)} 
+        onPlayersClick={() => setPlayersSheetOpen(true)}
+      />
       
       <div className="flex-1 flex lg:overflow-hidden">
         <DashboardSidebar 
@@ -129,6 +134,12 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+      
+      {/* Mobile players sheet */}
+      <MobilePlayersSheet 
+        open={playersSheetOpen} 
+        onOpenChange={setPlayersSheetOpen} 
+      />
     </div>
   )
 }
