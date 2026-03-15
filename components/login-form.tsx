@@ -28,24 +28,30 @@ export function LoginForm() {
       return
     }
 
-    // Try to connect to the server
+    // Try to connect to the server using the proxy to avoid mixed content issues
     try {
-      const response = await fetch(`http://${serverIp}:${restApiPort}/v1/api/info`, {
+      const proxyParams = new URLSearchParams({
+        serverIp,
+        serverPort: restApiPort,
+        adminPassword,
+      })
+      const response = await fetch(`/api/palworld/info?${proxyParams.toString()}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Basic ${btoa(`admin:${adminPassword}`)}`,
         },
       })
 
       if (!response.ok) {
-        throw new Error('Failed to connect to server')
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to connect to server')
       }
 
       // Connection successful, save config
       setConfig({ serverIp, restApiPort, adminPassword })
-    } catch {
-      setError('Failed to connect. Check your server IP, port, and password.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(`Failed to connect: ${message}`)
     } finally {
       setIsConnecting(false)
     }

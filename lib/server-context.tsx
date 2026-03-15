@@ -101,13 +101,17 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(prev => ({ ...prev, [endpoint]: true }))
     
-    const baseUrl = `http://${config.serverIp}:${config.restApiPort}/v1/api`
-    const url = `${baseUrl}/${endpoint}`
+    // Use the proxy API route to avoid mixed content issues
+    const proxyParams = new URLSearchParams({
+      serverIp: config.serverIp,
+      serverPort: config.restApiPort,
+      adminPassword: config.adminPassword,
+    })
+    const url = `/api/palworld/${endpoint}?${proxyParams.toString()}`
     
     try {
       const headers: HeadersInit = {
         'Accept': 'application/json',
-        'Authorization': `Basic ${btoa(`admin:${config.adminPassword}`)}`,
       }
       
       if (body) {
@@ -129,7 +133,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
       })
 
       if (!response.ok) {
-        throw new Error(response.statusText)
+        const errorData = data as { error?: string }
+        throw new Error(errorData.error || response.statusText)
       }
 
       return data
