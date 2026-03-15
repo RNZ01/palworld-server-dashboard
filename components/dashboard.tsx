@@ -93,10 +93,10 @@ export function Dashboard() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
       <DashboardHeader onMenuClick={() => setSidebarOpen(true)} />
       
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex lg:overflow-hidden">
         <DashboardSidebar 
           activeSection={activeSection}
           onSectionChange={setActiveSection}
@@ -104,20 +104,22 @@ export function Dashboard() {
           onClose={() => setSidebarOpen(false)}
         />
         
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
-            <main className="flex-1 overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1">
-                <div className="p-4 lg:p-6">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-foreground">{getSectionTitle()}</h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Manage your Palworld server with ease
-                    </p>
+        <div className="flex-1 flex flex-col lg:overflow-hidden">
+          <div className="flex-1 flex lg:overflow-hidden">
+            <main className="flex-1 flex flex-col lg:overflow-hidden">
+              <div className="flex-1 overflow-y-auto lg:overflow-hidden">
+                <ScrollArea className="h-full lg:h-auto lg:flex-1">
+                  <div className="p-4 lg:p-6">
+                    <div className="mb-6">
+                      <h2 className="text-2xl font-bold text-foreground">{getSectionTitle()}</h2>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Manage your Palworld server with ease
+                      </p>
+                    </div>
+                    {renderContent()}
                   </div>
-                  {renderContent()}
-                </div>
-              </ScrollArea>
+                </ScrollArea>
+              </div>
               <ConsolePanel />
             </main>
             
