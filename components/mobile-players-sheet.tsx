@@ -50,7 +50,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
             </Button>
           </SheetTitle>
         </SheetHeader>
-        
+
         <ScrollArea className="h-[calc(70vh-80px)] mt-4">
           {players.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -63,7 +63,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
             <div className="space-y-2">
               {players.map((player) => (
                 <div
-                  key={player.oddsId || player.oddsId || player.name}
+                  key={player.userId || player.name}
                   className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border"
                 >
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">

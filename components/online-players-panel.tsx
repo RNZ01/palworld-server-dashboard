@@ -5,14 +5,14 @@ import { useServer } from '@/lib/server-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger 
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -25,15 +25,16 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
-import { 
-  RefreshCwIcon, 
-  SearchIcon, 
-  MoreVerticalIcon, 
+import {
+  RefreshCwIcon,
+  SearchIcon,
+  MoreVerticalIcon,
   UserIcon,
   BanIcon,
   UnlockIcon,
   UsersIcon,
-  ClockIcon
+  ClockIcon,
+  WifiIcon
 } from 'lucide-react'
 import type { Player } from '@/lib/types'
 
@@ -41,12 +42,20 @@ interface PlayersResponse {
   players: Player[]
 }
 
+function getPingColor(ping: number) {
+  if (ping < 80) return 'text-green-500'
+  if (ping < 150) return 'text-yellow-500'
+  return 'text-red-500'
+}
+
 export function OnlinePlayersPanel() {
-  const { apiCall, players, setPlayers, refreshRate, setRefreshRate, isLoading } = useServer()
+  const { apiCall, players, setPlayers, refreshRate, setRefreshRate, isLoading, fetchAllData, addBannedPlayer, bannedPlayers, removeBannedPlayer } = useServer()
   const [search, setSearch] = useState('')
   const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; player: Player } | null>(null)
   const [countdown, setCountdown] = useState(refreshRate * 60)
-  const previousPlayersRef = useRef<Player[]>([])
+  const previousPlayersRef = useRef<Player[]>(players)
+  const refreshRateRef = useRef(refreshRate)
+  useEffect(() => { refreshRateRef.current = refreshRate }, [refreshRate])
 
   const fetchPlayers = useCallback(async (isManual = false) => {
     try {
@@ -57,13 +66,13 @@ export function OnlinePlayersPanel() {
 
         // Check for joins and leaves only if we have previous data
         if (prevPlayers.length > 0 || newPlayers.length > 0) {
-          const prevIds = new Set(prevPlayers.map(p => p.oddsId || p.playerId))
-          const newIds = new Set(newPlayers.map(p => p.oddsId || p.playerId))
+          const prevIds = new Set(prevPlayers.map(p => p.userId || p.playerId))
+          const newIds = new Set(newPlayers.map(p => p.userId || p.playerId))
 
           // Find players who joined
-          const joined = newPlayers.filter(p => !prevIds.has(p.oddsId || p.playerId))
+          const joined = newPlayers.filter(p => !prevIds.has(p.userId || p.playerId))
           // Find players who left
-          const left = prevPlayers.filter(p => !newIds.has(p.oddsId || p.playerId))
+          const left = prevPlayers.filter(p => !newIds.has(p.userId || p.playerId))
 
           // Show toast notifications
           joined.forEach(player => {
@@ -87,13 +96,19 @@ export function OnlinePlayersPanel() {
     }
     // Reset countdown after fetch
     if (!isManual) {
-      setCountdown(refreshRate * 60)
+      setCountdown(refreshRateRef.current * 60)
     }
-  }, [apiCall, setPlayers, refreshRate])
+  }, [apiCall, setPlayers])
 
-  // Auto-refresh players
+  // Initial fetch on mount only
   useEffect(() => {
     fetchPlayers()
+    // fetchPlayers is stable (no changing deps), so this truly runs once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Restart interval when refreshRate changes (no immediate fetch)
+  useEffect(() => {
     const interval = setInterval(() => fetchPlayers(), refreshRate * 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchPlayers, refreshRate])
@@ -116,11 +131,12 @@ export function OnlinePlayersPanel() {
   const handleManualRefresh = () => {
     setCountdown(refreshRate * 60)
     fetchPlayers(true)
+    fetchAllData()
   }
 
   const handleKick = async (player: Player) => {
     try {
-      await apiCall('kick', 'POST', { userid: player.oddsId })
+      await apiCall('kick', 'POST', { userid: player.userId })
       toast.success(`Kicked ${player.name}`)
       fetchPlayers()
     } catch {
@@ -131,7 +147,8 @@ export function OnlinePlayersPanel() {
 
   const handleBan = async (player: Player) => {
     try {
-      await apiCall('ban', 'POST', { userid: player.oddsId })
+      await apiCall('ban', 'POST', { userid: player.userId })
+      addBannedPlayer({ name: player.name, steamId: player.userId, bannedAt: new Date().toISOString() })
       toast.success(`Banned ${player.name}`)
       fetchPlayers()
     } catch {
@@ -142,16 +159,17 @@ export function OnlinePlayersPanel() {
 
   const handleUnban = async (player: Player) => {
     try {
-      await apiCall('unban', 'POST', { userid: player.oddsId })
-      toast.success(`Unbanned ${player.oddsId}`)
+      await apiCall('unban', 'POST', { userid: player.userId })
+      removeBannedPlayer(player.userId)
+      toast.success(`Unbanned ${player.name}`)
     } catch {
-      toast.error(`Failed to unban ${player.oddsId}`)
+      toast.error(`Failed to unban ${player.name}`)
     }
   }
 
   const filteredPlayers = players.filter(player =>
     player.name.toLowerCase().includes(search.toLowerCase()) ||
-    player.oddsId?.toLowerCase().includes(search.toLowerCase())
+    player.userId?.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -194,7 +212,7 @@ export function OnlinePlayersPanel() {
               variant="outline"
               size="icon"
               onClick={handleManualRefresh}
-              disabled={isLoading['players']}
+              disabled={isLoading['players'] || isLoading['info'] || isLoading['metrics'] || isLoading['settings']}
               className="h-9 w-9 border-border"
             >
               {isLoading['players'] ? (
@@ -221,19 +239,30 @@ export function OnlinePlayersPanel() {
             </div>
           ) : (
             <div className="space-y-1">
-              {filteredPlayers.map((player) => (
+              {filteredPlayers.map((player) => {
+                const isBanned = bannedPlayers.some(b => b.steamId === player.userId)
+                return (
                 <div
-                  key={player.oddsId || player.playerId}
-                  className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/50 transition-colors group"
+                  key={player.userId || player.playerId}
+                  className={`flex items-center justify-between p-2 rounded-lg hover:bg-secondary/50 transition-colors group ${isBanned ? 'border border-destructive/30 bg-destructive/5' : ''}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <UserIcon className="w-4 h-4 text-primary" />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isBanned ? 'bg-destructive/10' : 'bg-primary/10'}`}>
+                      <UserIcon className={`w-4 h-4 ${isBanned ? 'text-destructive' : 'text-primary'}`} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{player.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        Lvl {player.level} | {player.ping}ms
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-foreground truncate">{player.name}</p>
+                        {isBanned && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive shrink-0">BANNED</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                        Lvl {player.level}
+                        {player.accountName && player.accountName !== player.name && (
+                          <><span className="mx-0.5">·</span><span className="truncate max-w-20">{player.accountName}</span></>
+                        )}
+                        <span className="mx-0.5">|</span>
+                        <WifiIcon className={`w-3 h-3 ${getPingColor(Math.floor(player.ping ?? 0))}`} />
+                        <span className={getPingColor(Math.floor(player.ping ?? 0))}>{Math.floor(player.ping ?? 0)}ms</span>
                       </p>
                     </div>
                   </div>
@@ -248,26 +277,32 @@ export function OnlinePlayersPanel() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem onClick={() => setConfirmAction({ type: 'kick', player })}>
-                        <UserIcon className="w-4 h-4 mr-2" />
-                        Kick Player
-                      </DropdownMenuItem>
+                      {!isBanned && (
+                        <DropdownMenuItem onClick={() => setConfirmAction({ type: 'kick', player })}>
+                          <UserIcon className="w-4 h-4 mr-2" />
+                          Kick Player
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => setConfirmAction({ type: 'ban', player })}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <BanIcon className="w-4 h-4 mr-2" />
-                        Ban Player
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleUnban(player)}>
-                        <UnlockIcon className="w-4 h-4 mr-2" />
-                        Unban Player
-                      </DropdownMenuItem>
+                      {isBanned ? (
+                        <DropdownMenuItem onClick={() => handleUnban(player)}>
+                          <UnlockIcon className="w-4 h-4 mr-2" />
+                          Unban Player
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onClick={() => setConfirmAction({ type: 'ban', player })}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <BanIcon className="w-4 h-4 mr-2" />
+                          Ban Player
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

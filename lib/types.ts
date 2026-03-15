@@ -6,17 +6,21 @@ export interface ServerConfig {
 
 export interface Player {
   name: string
+  accountName: string
   playerId: string
-  oddsId: string
-  oddsName: string
-  level: number
+  userId: string
+  ip: string
   ping: number
+  location_x: number
+  location_y: number
+  level: number
 }
 
 export interface ServerInfo {
   version: string
-  serverName: string
+  servername: string
   description: string
+  worldguid: string
 }
 
 export interface ServerMetrics {
@@ -25,6 +29,8 @@ export interface ServerMetrics {
   maxplayernum: number
   serverframetime: number
   uptime: number
+  days: number
+  basecampnum: number
 }
 
 export interface ApiResponse<T = unknown> {
@@ -41,4 +47,10 @@ export interface ConsoleLog {
   timestamp: Date
   endpoint: string
   rawResponse?: string
+}
+
+export interface BannedPlayer {
+  name: string
+  steamId: string
+  bannedAt: string
 }
