@@ -29,12 +29,12 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[70vh] rounded-t-xl">
-        <SheetHeader className="pb-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="flex items-center gap-2">
+        <SheetHeader className="pb-4 border-b border-border pr-8">
+          <SheetTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
               <UsersIcon className="w-5 h-5 text-primary" />
               Online Players ({players.length})
-            </SheetTitle>
+            </span>
             <Button
               variant="outline"
               size="icon"
@@ -48,7 +48,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
                 <RefreshCwIcon className="w-4 h-4" />
               )}
             </Button>
-          </div>
+          </SheetTitle>
         </SheetHeader>
         
         <ScrollArea className="h-[calc(70vh-80px)] mt-4">
