@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServer } from '@/lib/server-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,7 +32,8 @@ import {
   UserIcon,
   BanIcon,
   UnlockIcon,
-  UsersIcon
+  UsersIcon,
+  ClockIcon
 } from 'lucide-react'
 import type { Player } from '@/lib/types'
 
@@ -44,24 +45,78 @@ export function OnlinePlayersPanel() {
   const { apiCall, players, setPlayers, refreshRate, setRefreshRate, isLoading } = useServer()
   const [search, setSearch] = useState('')
   const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; player: Player } | null>(null)
+  const [countdown, setCountdown] = useState(refreshRate * 60)
+  const previousPlayersRef = useRef<Player[]>([])
 
-  const fetchPlayers = useCallback(async () => {
+  const fetchPlayers = useCallback(async (isManual = false) => {
     try {
       const data = await apiCall<PlayersResponse>('players')
       if (data?.players) {
-        setPlayers(data.players)
+        const newPlayers = data.players
+        const prevPlayers = previousPlayersRef.current
+
+        // Check for joins and leaves only if we have previous data
+        if (prevPlayers.length > 0 || newPlayers.length > 0) {
+          const prevIds = new Set(prevPlayers.map(p => p.oddsId || p.playerId))
+          const newIds = new Set(newPlayers.map(p => p.oddsId || p.playerId))
+
+          // Find players who joined
+          const joined = newPlayers.filter(p => !prevIds.has(p.oddsId || p.playerId))
+          // Find players who left
+          const left = prevPlayers.filter(p => !newIds.has(p.oddsId || p.playerId))
+
+          // Show toast notifications
+          joined.forEach(player => {
+            toast.success(`${player.name} joined the server`, {
+              icon: <UserIcon className="w-4 h-4 text-green-500" />,
+            })
+          })
+
+          left.forEach(player => {
+            toast.info(`${player.name} left the server`, {
+              icon: <UserIcon className="w-4 h-4 text-yellow-500" />,
+            })
+          })
+        }
+
+        previousPlayersRef.current = newPlayers
+        setPlayers(newPlayers)
       }
     } catch {
       // Error already logged in apiCall
     }
-  }, [apiCall, setPlayers])
+    // Reset countdown after fetch
+    if (!isManual) {
+      setCountdown(refreshRate * 60)
+    }
+  }, [apiCall, setPlayers, refreshRate])
 
   // Auto-refresh players
   useEffect(() => {
     fetchPlayers()
-    const interval = setInterval(fetchPlayers, refreshRate * 60 * 1000)
+    const interval = setInterval(() => fetchPlayers(), refreshRate * 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchPlayers, refreshRate])
+
+  // Countdown timer
+  useEffect(() => {
+    setCountdown(refreshRate * 60)
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => (prev > 0 ? prev - 1 : refreshRate * 60))
+    }, 1000)
+    return () => clearInterval(countdownInterval)
+  }, [refreshRate])
+
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const handleManualRefresh = () => {
+    setCountdown(refreshRate * 60)
+    fetchPlayers(true)
+  }
 
   const handleKick = async (player: Player) => {
     try {
@@ -138,7 +193,7 @@ export function OnlinePlayersPanel() {
             <Button
               variant="outline"
               size="icon"
-              onClick={fetchPlayers}
+              onClick={handleManualRefresh}
               disabled={isLoading['players']}
               className="h-9 w-9 border-border"
             >
@@ -148,6 +203,12 @@ export function OnlinePlayersPanel() {
                 <RefreshCwIcon className="w-4 h-4" />
               )}
             </Button>
+          </div>
+
+          {/* Countdown Timer */}
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded-md py-1.5 px-3">
+            <ClockIcon className="w-3 h-3" />
+            <span>Next refresh in <span className="font-mono font-medium text-foreground">{formatCountdown(countdown)}</span></span>
           </div>
         </div>
       </div>
