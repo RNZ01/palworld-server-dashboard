@@ -124,12 +124,19 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         body: body ? JSON.stringify(body) : undefined,
       })
 
-      const data = await response.json() as T
+      const responseText = await response.text()
+      let data: T
+      try {
+        data = JSON.parse(responseText) as T
+      } catch {
+        data = responseText as unknown as T
+      }
       
       addLog({
         type: response.ok ? 'success' : 'error',
         message: response.ok ? `${endpoint}: Request successful` : `${endpoint}: ${response.statusText}`,
         endpoint,
+        rawResponse: responseText,
       })
 
       if (!response.ok) {

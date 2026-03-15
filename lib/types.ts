@@ -40,4 +40,5 @@ export interface ConsoleLog {
   message: string
   timestamp: Date
   endpoint: string
+  rawResponse?: string
 }
