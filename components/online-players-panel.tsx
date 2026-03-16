@@ -100,12 +100,14 @@ export function OnlinePlayersPanel() {
     }
   }, [apiCall, setPlayers])
 
-  // Initial fetch on mount only
+  // Initial fetch on mount only - use a ref to ensure single execution
+  const hasInitializedRef = useRef(false)
   useEffect(() => {
-    fetchPlayers()
-    // fetchPlayers is stable (no changing deps), so this truly runs once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true
+      fetchPlayers()
+    }
+  }, [fetchPlayers])
 
   // Restart interval when refreshRate changes (no immediate fetch)
   useEffect(() => {
