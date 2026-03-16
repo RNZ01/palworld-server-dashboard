@@ -313,7 +313,7 @@ export function ServerManagementCard() {
       // Wait 10 seconds then shutdown
       await new Promise(resolve => setTimeout(resolve, 10000))
       
-      await apiCall('shutdown', 'POST', { waittime: 0, message: 'Server shutting down now!' })
+      await apiCall('shutdown', 'POST', { waittime: 1 })
       toast.success('Server shutdown initiated')
     } catch {
       toast.error('Failed to shutdown server')
