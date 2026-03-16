@@ -84,42 +84,38 @@ interface PresetMessage {
 
 const PRESET_MESSAGES: PresetMessage[] = [
   {
-    label: 'Restart in 1 min',
-    message: 'Server will restart in 1 minute. Please find a safe spot!',
+    label: '⚠ Restart in 1 min',
+    message: '⚠ Server will restart in 1 minute. Please find a safe spot!',
     reminders: [
-      { delayMs: 30_000, message: '⚠️ Server restarting in 30 seconds!' },
-      { delayMs: 50_000, message: '🚨 Server restarting in 10 seconds!' },
+      { delayMs: 30_000, message: '⚠ Server restarting in 30 seconds!' },
+      { delayMs: 50_000, message: '⚠ Server restarting in 10 seconds!' },
     ],
   },
   {
-    label: 'Restart in 5 min',
-    message: 'Server will restart in 5 minutes.',
+    label: '⚠ Restart in 5 min',
+    message: '⚠ Server will restart in 5 minutes.',
     reminders: [
-      { delayMs:  60_000, message: 'Server restarting in 4 minutes.' },
-      { delayMs: 120_000, message: 'Server restarting in 3 minutes.' },
-      { delayMs: 180_000, message: 'Server restarting in 2 minutes.' },
-      { delayMs: 240_000, message: '⚠️ Server restarting in 1 minute!' },
-      { delayMs: 270_000, message: '⚠️ Server restarting in 30 seconds!' },
-      { delayMs: 290_000, message: '🚨 Server restarting in 10 seconds!' },
+      { delayMs:  60_000, message: '⚠ Server restarting in 4 minutes.' },
+      { delayMs: 120_000, message: '⚠ Server restarting in 3 minutes.' },
+      { delayMs: 180_000, message: '⚠ Server restarting in 2 minutes.' },
+      { delayMs: 240_000, message: '⚠ Server restarting in 1 minute!' },
+      { delayMs: 270_000, message: '⚠ Server restarting in 30 seconds!' },
+      { delayMs: 290_000, message: '⚠ Server restarting in 10 seconds!' },
     ],
   },
   {
-    label: 'Restart in 10 min',
-    message: 'Server will restart in 10 minutes.',
+    label: '⚠ Restart in 10 min',
+    message: '⚠ Server will restart in 10 minutes.',
     reminders: [
-      { delayMs: 300_000, message: 'Server restarting in 5 minutes.' },
-      { delayMs: 480_000, message: '⚠️ Server restarting in 2 minutes!' },
-      { delayMs: 540_000, message: '⚠️ Server restarting in 1 minute!' },
-      { delayMs: 570_000, message: '⚠️ Server restarting in 30 seconds!' },
-      { delayMs: 590_000, message: '🚨 Server restarting in 10 seconds!' },
+      { delayMs: 300_000, message: '⚠ Server restarting in 5 minutes.' },
+      { delayMs: 480_000, message: '⚠ Server restarting in 2 minutes!' },
+      { delayMs: 540_000, message: '⚠ Server restarting in 1 minute!' },
+      { delayMs: 570_000, message: '⚠ Server restarting in 30 seconds!' },
+      { delayMs: 590_000, message: '⚠ Server restarting in 10 seconds!' },
     ],
   },
   { label: 'Maintenance soon', message: 'Maintenance starting soon. Server will go offline briefly.' },
-  { label: 'Welcome',          message: 'Welcome to the server! Please read the rules.' },
-  { label: 'Save in progress', message: 'World save in progress...' },
   { label: 'Save complete',    message: 'World has been saved successfully.' },
-  { label: 'PvP enabled',      message: 'PvP is now enabled in this area.' },
-  { label: 'PvP disabled',     message: 'PvP has been disabled.' },
   { label: 'Admin online',     message: 'An admin is online. Play fair!' },
 ]
 
@@ -144,10 +140,16 @@ export function AnnouncementCard() {
     return () => clearInterval(iv)
   }, [activeSchedule])
 
-  const cancelSchedule = async () => {
+  // Clear timers without announcing (used when starting a new schedule)
+  const clearTimers = () => {
     timerRefs.current.forEach(clearTimeout)
     timerRefs.current = []
     setActiveSchedule(null)
+  }
+
+  // Cancel with announcement (user clicked cancel button)
+  const cancelSchedule = async () => {
+    clearTimers()
     try {
       await sendMessage('✅ Server restart has been cancelled.')
       toast.success('Restart cancelled — players notified.')
@@ -158,6 +160,21 @@ export function AnnouncementCard() {
 
   const sendMessage = async (text: string) => {
     await apiCall('announce', 'POST', { message: text })
+  }
+
+  const executeShutdown = async () => {
+    try {
+      // Save world first
+      await apiCall('save', 'POST')
+      await sendMessage('World has been saved successfully.')
+      toast.success('World saved before shutdown')
+      
+      // Execute shutdown
+      await apiCall('shutdown', 'POST', { waittime: 1 })
+      toast.success('Server shutdown initiated')
+    } catch {
+      toast.error('Failed to shutdown server')
+    }
   }
 
   const sendAnnouncement = async (preset?: PresetMessage) => {
@@ -172,18 +189,29 @@ export function AnnouncementCard() {
       if (!preset) setMessage('')
 
       if (preset?.reminders?.length) {
-        cancelSchedule()
-        // Find total duration from last reminder
-        const totalMs = preset.reminders[preset.reminders.length - 1].delayMs
-        setActiveSchedule({ label: preset.label, endsAt: Date.now() + totalMs })
-        setRemaining(totalMs)
+        // Clear any existing timers without announcing cancellation
+        clearTimers()
+        // Find total duration from last reminder + 10 seconds for shutdown
+        const lastReminderMs = preset.reminders[preset.reminders.length - 1].delayMs
+        const shutdownDelayMs = lastReminderMs + 10_000 // 10 seconds after last reminder
+        setActiveSchedule({ label: preset.label, endsAt: Date.now() + shutdownDelayMs })
+        setRemaining(shutdownDelayMs)
+        
+        // Schedule all reminder messages
         const refs = preset.reminders.map(({ delayMs, message: reminderMsg }) =>
           setTimeout(async () => {
             try { await sendMessage(reminderMsg) } catch {}
             toast.info(reminderMsg, { duration: 4000 })
           }, delayMs)
         )
-        timerRefs.current = refs
+        
+        // Schedule the actual shutdown after the last reminder
+        const shutdownTimer = setTimeout(async () => {
+          await executeShutdown()
+          clearTimers()
+        }, shutdownDelayMs)
+        
+        timerRefs.current = [...refs, shutdownTimer]
       }
     } catch {
       toast.error('Failed to send announcement')
@@ -266,33 +294,79 @@ export function AnnouncementCard() {
 export function ServerManagementCard() {
   const { apiCall, isLoading } = useServer()
   const [confirmAction, setConfirmAction] = useState<'shutdown' | 'stop' | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
-  const saveWorld = async () => {
+  const sendAnnouncement = async (text: string) => {
     try {
-      await apiCall('save', 'POST')
-      toast.success('World saved successfully')
+      await apiCall('announce', 'POST', { message: text })
     } catch {
-      toast.error('Failed to save world')
+      // Silently fail announcement
     }
   }
 
-  const shutdownServer = async () => {
+  const saveWorldAndAnnounce = async (): Promise<boolean> => {
     try {
-      await apiCall('shutdown', 'POST', { waittime: 10, message: 'Server shutting down...' })
+      await apiCall('save', 'POST')
+      await sendAnnouncement('World has been saved successfully.')
+      toast.success('World saved successfully')
+      return true
+    } catch {
+      toast.error('Failed to save world')
+      return false
+    }
+  }
+
+  const saveWorld = async () => {
+    await saveWorldAndAnnounce()
+  }
+
+  const shutdownServer = async () => {
+    setIsProcessing(true)
+    try {
+      // First save the world
+      const saved = await saveWorldAndAnnounce()
+      if (!saved) {
+        setIsProcessing(false)
+        setConfirmAction(null)
+        return
+      }
+      
+      // Announce shutdown
+      await sendAnnouncement('⚠ Server will shutdown in 10 seconds!')
+      toast.info('Shutdown announced - waiting 10 seconds...')
+      
+      // Wait 10 seconds then shutdown
+      await new Promise(resolve => setTimeout(resolve, 10000))
+      
+      await apiCall('shutdown', 'POST', { waittime: 1 })
       toast.success('Server shutdown initiated')
     } catch {
       toast.error('Failed to shutdown server')
     }
+    setIsProcessing(false)
     setConfirmAction(null)
   }
 
   const stopServer = async () => {
+    setIsProcessing(true)
     try {
+      // First save the world
+      const saved = await saveWorldAndAnnounce()
+      if (!saved) {
+        setIsProcessing(false)
+        setConfirmAction(null)
+        return
+      }
+      
+      // Announce stop
+      await sendAnnouncement('⚠ Server force stopping now!')
+      
       await apiCall('stop', 'POST')
       toast.success('Server stopped')
     } catch {
       toast.error('Failed to stop server')
     }
+    setIsProcessing(false)
     setConfirmAction(null)
   }
 
@@ -313,7 +387,7 @@ export function ServerManagementCard() {
         <CardContent className="space-y-3">
           <Button
             onClick={saveWorld}
-            disabled={isLoading['save']}
+            disabled={isLoading['save'] || isProcessing}
             variant="secondary"
             className="w-full"
           >
@@ -322,6 +396,7 @@ export function ServerManagementCard() {
           </Button>
           <Button
             onClick={() => setConfirmAction('shutdown')}
+            disabled={isProcessing}
             variant="outline"
             className="w-full border-warning/50 text-warning hover:bg-warning/10"
           >
@@ -330,6 +405,7 @@ export function ServerManagementCard() {
           </Button>
           <Button
             onClick={() => setConfirmAction('stop')}
+            disabled={isProcessing}
             variant="outline"
             className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
           >
@@ -339,7 +415,7 @@ export function ServerManagementCard() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => !isProcessing && !open && setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -347,17 +423,19 @@ export function ServerManagementCard() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction === 'shutdown'
-                ? 'This will gracefully shutdown the server after 10 seconds. Players will be notified.'
-                : 'This will immediately stop the server. Unsaved progress may be lost!'}
+                ? 'This will save the world, announce shutdown, wait 10 seconds, then shutdown the server.'
+                : 'This will save the world, announce the stop, then immediately stop the server.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmAction === 'shutdown' ? shutdownServer : stopServer}
+              disabled={isProcessing}
               className={confirmAction === 'stop' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-warning text-warning-foreground hover:bg-warning/90'}
             >
-              {confirmAction === 'shutdown' ? 'Shutdown' : 'Force Stop'}
+              {isProcessing ? <Spinner className="w-4 h-4 mr-2" /> : null}
+              {confirmAction === 'shutdown' ? (isProcessing ? 'Shutting down...' : 'Shutdown') : (isProcessing ? 'Stopping...' : 'Force Stop')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

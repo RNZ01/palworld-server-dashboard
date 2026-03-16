@@ -298,18 +298,15 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     }
   }, [config, apiCall, setServerInfo, setServerMetrics, setSettings])
 
-  // Fetch all data on initial load and set up interval
+  // Fetch all data on initial load only (no interval - OnlinePlayersPanel handles refresh)
   useEffect(() => {
     if (config && isHydrated) {
-      // Fetch data immediately on mount
+      // Fetch data immediately on mount (only once)
       fetchAllData()
-
-      // Set up interval for auto-refresh using the user-configured refresh rate (in minutes)
-      const intervalId = setInterval(fetchAllData, refreshRate * 60 * 1000)
-
-      return () => clearInterval(intervalId)
     }
-  }, [config, fetchAllData, isHydrated, refreshRate])
+    // Only run on initial config load, not on every refresh rate change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, isHydrated])
 
   if (!isHydrated) {
     return null
