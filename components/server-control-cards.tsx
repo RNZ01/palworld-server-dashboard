@@ -162,6 +162,21 @@ export function AnnouncementCard() {
     await apiCall('announce', 'POST', { message: text })
   }
 
+  const executeShutdown = async () => {
+    try {
+      // Save world first
+      await apiCall('save', 'POST')
+      await sendMessage('World has been saved successfully.')
+      toast.success('World saved before shutdown')
+      
+      // Execute shutdown
+      await apiCall('shutdown', 'POST', { waittime: 1 })
+      toast.success('Server shutdown initiated')
+    } catch {
+      toast.error('Failed to shutdown server')
+    }
+  }
+
   const sendAnnouncement = async (preset?: PresetMessage) => {
     const text = preset ? preset.message : message
     if (!text.trim()) {
@@ -176,17 +191,27 @@ export function AnnouncementCard() {
       if (preset?.reminders?.length) {
         // Clear any existing timers without announcing cancellation
         clearTimers()
-        // Find total duration from last reminder
-        const totalMs = preset.reminders[preset.reminders.length - 1].delayMs
-        setActiveSchedule({ label: preset.label, endsAt: Date.now() + totalMs })
-        setRemaining(totalMs)
+        // Find total duration from last reminder + 10 seconds for shutdown
+        const lastReminderMs = preset.reminders[preset.reminders.length - 1].delayMs
+        const shutdownDelayMs = lastReminderMs + 10_000 // 10 seconds after last reminder
+        setActiveSchedule({ label: preset.label, endsAt: Date.now() + shutdownDelayMs })
+        setRemaining(shutdownDelayMs)
+        
+        // Schedule all reminder messages
         const refs = preset.reminders.map(({ delayMs, message: reminderMsg }) =>
           setTimeout(async () => {
             try { await sendMessage(reminderMsg) } catch {}
             toast.info(reminderMsg, { duration: 4000 })
           }, delayMs)
         )
-        timerRefs.current = refs
+        
+        // Schedule the actual shutdown after the last reminder
+        const shutdownTimer = setTimeout(async () => {
+          await executeShutdown()
+          clearTimers()
+        }, shutdownDelayMs)
+        
+        timerRefs.current = [...refs, shutdownTimer]
       }
     } catch {
       toast.error('Failed to send announcement')
