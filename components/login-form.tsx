@@ -4,8 +4,11 @@ import { useState } from 'react'
 import { useServer } from '@/lib/server-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
+import { buildPalworldApiUrl } from '@/lib/palworld'
+import { LOGIN_TRANSITION_SESSION_KEY } from '@/lib/session-keys'
+import { InfoPanel, StatusBar } from '@/components/status-bar'
+import { Terminal } from '@/components/terminal'
 import { ServerIcon, KeyIcon, NetworkIcon, Loader2Icon } from 'lucide-react'
 
 export function LoginForm() {
@@ -21,25 +24,25 @@ export function LoginForm() {
     setError('')
     setIsConnecting(true)
 
-    // Validate inputs
-    if (!serverIp || !restApiPort || !adminPassword) {
+    const normalizedConfig = {
+      serverIp: serverIp.trim(),
+      restApiPort: restApiPort.trim(),
+      adminPassword,
+    }
+
+    if (!normalizedConfig.serverIp || !normalizedConfig.restApiPort || !normalizedConfig.adminPassword) {
       setError('All fields are required')
       setIsConnecting(false)
       return
     }
 
-    // Try to connect to the server using the proxy to avoid mixed content issues
     try {
-      const proxyParams = new URLSearchParams({
-        serverIp,
-        serverPort: restApiPort,
-        adminPassword,
-      })
-      const response = await fetch(`/api/palworld/info?${proxyParams.toString()}`, {
+      const response = await fetch(buildPalworldApiUrl(normalizedConfig, 'info'), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
+        cache: 'no-store',
       })
 
       if (!response.ok) {
@@ -47,8 +50,8 @@ export function LoginForm() {
         throw new Error(data.error || 'Failed to connect to server')
       }
 
-      // Connection successful, save config
-      setConfig({ serverIp, restApiPort, adminPassword })
+      sessionStorage.setItem(LOGIN_TRANSITION_SESSION_KEY, '1')
+      setConfig(normalizedConfig)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setError(`Failed to connect: ${message}`)
@@ -58,91 +61,125 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center">
-            <ServerIcon className="w-8 h-8 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-2xl font-bold text-foreground">Palworld Server Admin</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Connect to your Palworld server REST API
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="serverIp">Server IP Address</FieldLabel>
-                <div className="relative">
-                  <NetworkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="serverIp"
-                    type="text"
-                    placeholder="192.168.1.100"
-                    value={serverIp}
-                    onChange={(e) => setServerIp(e.target.value)}
-                    className="pl-10 bg-input border-border"
-                  />
-                </div>
-              </Field>
+    <div className="min-h-screen bg-background p-4 sm:p-6">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col justify-center gap-4">
+        <StatusBar
+          variant="info"
+          leftContent={
+            <>
+              <span>PALWORLD CONTROL GRID</span>
+              <span>AUTHENTICATION REQUIRED</span>
+            </>
+          }
+          rightContent={
+            <>
+              <span>REST LINK</span>
+              <span>READY</span>
+            </>
+          }
+        />
 
-              <Field>
-                <FieldLabel htmlFor="restApiPort">REST API Port</FieldLabel>
-                <div className="relative">
-                  <ServerIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="restApiPort"
-                    type="text"
-                    placeholder="8212"
-                    value={restApiPort}
-                    onChange={(e) => setRestApiPort(e.target.value)}
-                    className="pl-10 bg-input border-border"
-                  />
-                </div>
-              </Field>
+        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <Terminal
+            title="BOOT SEQUENCE"
+            lines={[
+              { text: 'INITIALIZING ADMIN INTERFACE', type: 'system' },
+              { text: 'LOADING SERVER LINK PROTOCOLS', type: 'output' },
+              { text: 'VERIFY PALWORLD REST ENDPOINT', type: 'output' },
+              { text: 'AWAITING OPERATOR CREDENTIALS', type: 'input' },
+            ]}
+            className="hidden min-h-[520px] xl:block"
+          />
 
-              <Field>
-                <FieldLabel htmlFor="adminPassword">Admin Password</FieldLabel>
-                <div className="relative">
-                  <KeyIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="adminPassword"
-                    type="password"
-                    placeholder="Enter admin password"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    className="pl-10 bg-input border-border"
-                  />
-                </div>
-              </Field>
-            </FieldGroup>
-
-            {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                {error}
+          <InfoPanel
+            title="Palworld Server Admin"
+            subtitle="REST Link Authentication"
+            status="active"
+            className="w-full border-border/60 bg-card/80"
+          >
+            <div className="mb-6 flex flex-col items-center text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+                <ServerIcon className="h-8 w-8 text-primary" />
               </div>
-            )}
+              <p className="mt-4 max-w-md text-sm text-muted-foreground">
+                Connect to your Palworld server REST API and bring the control grid online.
+              </p>
+            </div>
 
-            <Button 
-              type="submit" 
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={isConnecting}
-            >
-              {isConnecting ? (
-                <>
-                  <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                'Connect to Server'
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel htmlFor="serverIp">Server IP Address</FieldLabel>
+                    <div className="relative">
+                      <NetworkIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="serverIp"
+                        type="text"
+                        placeholder="192.168.1.100"
+                        value={serverIp}
+                        onChange={(e) => setServerIp(e.target.value)}
+                        className="pl-10 bg-input border-border"
+                      />
+                    </div>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="restApiPort">REST API Port</FieldLabel>
+                    <div className="relative">
+                      <ServerIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="restApiPort"
+                        type="text"
+                        placeholder="8212"
+                        value={restApiPort}
+                        onChange={(e) => setRestApiPort(e.target.value)}
+                        className="pl-10 bg-input border-border"
+                      />
+                    </div>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="adminPassword">Admin Password</FieldLabel>
+                    <div className="relative">
+                      <KeyIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="adminPassword"
+                        type="password"
+                        placeholder="Enter admin password"
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        className="pl-10 bg-input border-border"
+                      />
+                    </div>
+                  </Field>
+                </FieldGroup>
+
+                {error && (
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect to Server'
+                  )}
+                </Button>
+              </form>
+            </div>
+          </InfoPanel>
+        </div>
+      </div>
     </div>
   )
 }

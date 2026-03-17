@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { InfoPanel } from '@/components/status-bar'
 import { useServer } from '@/lib/server-context'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -24,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
+import { getPlayerKey, normalizePlayersPayload } from '@/lib/palworld'
 import { toast } from 'sonner'
 import {
   RefreshCwIcon,
@@ -38,10 +41,6 @@ import {
 } from 'lucide-react'
 import type { Player } from '@/lib/types'
 
-interface PlayersResponse {
-  players: Player[]
-}
-
 function getPingColor(ping: number) {
   if (ping < 80) return 'text-green-500'
   if (ping < 150) return 'text-yellow-500'
@@ -55,46 +54,40 @@ export function OnlinePlayersPanel() {
   const [countdown, setCountdown] = useState(refreshRate * 60)
   const previousPlayersRef = useRef<Player[]>(players)
   const refreshRateRef = useRef(refreshRate)
+
   useEffect(() => { refreshRateRef.current = refreshRate }, [refreshRate])
 
   const fetchPlayers = useCallback(async (isManual = false) => {
     try {
-      const data = await apiCall<PlayersResponse>('players')
-      if (data?.players) {
-        const newPlayers = data.players
-        const prevPlayers = previousPlayersRef.current
+      const payload = await apiCall<unknown>('players')
+      const newPlayers = normalizePlayersPayload(payload)
+      const prevPlayers = previousPlayersRef.current
 
-        // Check for joins and leaves only if we have previous data
-        if (prevPlayers.length > 0 || newPlayers.length > 0) {
-          const prevIds = new Set(prevPlayers.map(p => p.userId || p.playerId))
-          const newIds = new Set(newPlayers.map(p => p.userId || p.playerId))
+      if (prevPlayers.length > 0 || newPlayers.length > 0) {
+        const prevIds = new Set(prevPlayers.map(getPlayerKey))
+        const newIds = new Set(newPlayers.map(getPlayerKey))
+        const joined = newPlayers.filter((player) => !prevIds.has(getPlayerKey(player)))
+        const left = prevPlayers.filter((player) => !newIds.has(getPlayerKey(player)))
 
-          // Find players who joined
-          const joined = newPlayers.filter(p => !prevIds.has(p.userId || p.playerId))
-          // Find players who left
-          const left = prevPlayers.filter(p => !newIds.has(p.userId || p.playerId))
-
-          // Show toast notifications
-          joined.forEach(player => {
-            toast.success(`${player.name} joined the server`, {
-              icon: <UserIcon className="w-4 h-4 text-green-500" />,
-            })
+        joined.forEach((player) => {
+          toast.success(`${player.name} joined the server`, {
+            icon: <UserIcon className="w-4 h-4 text-green-500" />,
           })
+        })
 
-          left.forEach(player => {
-            toast.info(`${player.name} left the server`, {
-              icon: <UserIcon className="w-4 h-4 text-yellow-500" />,
-            })
+        left.forEach((player) => {
+          toast.info(`${player.name} left the server`, {
+            icon: <UserIcon className="w-4 h-4 text-yellow-500" />,
           })
-        }
-
-        previousPlayersRef.current = newPlayers
-        setPlayers(newPlayers)
+        })
       }
+
+      previousPlayersRef.current = newPlayers
+      setPlayers(newPlayers)
     } catch {
       // Error already logged in apiCall
     }
-    // Reset countdown after fetch
+
     if (!isManual) {
       setCountdown(refreshRateRef.current * 60)
     }
@@ -132,15 +125,15 @@ export function OnlinePlayersPanel() {
 
   const handleManualRefresh = () => {
     setCountdown(refreshRate * 60)
-    fetchPlayers(true)
-    fetchAllData()
+    void fetchPlayers(true)
+    void fetchAllData()
   }
 
   const handleKick = async (player: Player) => {
     try {
       await apiCall('kick', 'POST', { userid: player.userId })
       toast.success(`Kicked ${player.name}`)
-      fetchPlayers()
+      void fetchPlayers()
     } catch {
       toast.error(`Failed to kick ${player.name}`)
     }
@@ -152,7 +145,7 @@ export function OnlinePlayersPanel() {
       await apiCall('ban', 'POST', { userid: player.userId })
       addBannedPlayer({ name: player.name, steamId: player.userId, bannedAt: new Date().toISOString() })
       toast.success(`Banned ${player.name}`)
-      fetchPlayers()
+      void fetchPlayers()
     } catch {
       toast.error(`Failed to ban ${player.name}`)
     }
@@ -169,22 +162,31 @@ export function OnlinePlayersPanel() {
     }
   }
 
-  const filteredPlayers = players.filter(player =>
-    player.name.toLowerCase().includes(search.toLowerCase()) ||
-    player.userId?.toLowerCase().includes(search.toLowerCase())
-  )
+  const searchQuery = search.trim().toLowerCase()
+  const bannedPlayerIds = useMemo(() => new Set(bannedPlayers.map((player) => player.steamId)), [bannedPlayers])
+
+  const filteredPlayers = useMemo(() => {
+    if (!searchQuery) {
+      return players
+    }
+
+    return players.filter((player) =>
+      player.name.toLowerCase().includes(searchQuery) ||
+      player.userId.toLowerCase().includes(searchQuery)
+    )
+  }, [players, searchQuery])
 
   return (
-    <aside className="w-80 border-l border-border bg-card/30 flex flex-col h-full">
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-4">
+    <aside className="flex h-full w-80 min-h-0">
+      <InfoPanel title="Online Players" subtitle="Personnel Ledger" status="active" className="flex h-full min-h-0 w-full flex-col">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UsersIcon className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold text-foreground">Online Players</h2>
+            <h2 className="font-semibold text-foreground">Roster</h2>
           </div>
-          <span className="text-xs font-medium px-2 py-1 rounded-full bg-primary/10 text-primary">
+          <Badge variant="secondary" className="px-2 py-1">
             {players.length}
-          </span>
+          </Badge>
         </div>
 
         <div className="space-y-3">
@@ -231,9 +233,8 @@ export function OnlinePlayersPanel() {
             <span>Next refresh in <span className="font-mono font-medium text-foreground">{formatCountdown(countdown)}</span></span>
           </div>
         </div>
-      </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-2">
           {filteredPlayers.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">
@@ -242,10 +243,10 @@ export function OnlinePlayersPanel() {
           ) : (
             <div className="space-y-1">
               {filteredPlayers.map((player) => {
-                const isBanned = bannedPlayers.some(b => b.steamId === player.userId)
+                const isBanned = bannedPlayerIds.has(player.userId)
                 return (
                 <div
-                  key={player.userId || player.playerId}
+                  key={getPlayerKey(player)}
                   className={`flex items-center justify-between p-2 rounded-lg hover:bg-secondary/50 transition-colors group ${isBanned ? 'border border-destructive/30 bg-destructive/5' : ''}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -309,6 +310,7 @@ export function OnlinePlayersPanel() {
           )}
         </div>
       </ScrollArea>
+      </InfoPanel>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>

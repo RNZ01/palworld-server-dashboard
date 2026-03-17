@@ -1,11 +1,13 @@
 'use client'
 
+import { InfoPanel } from '@/components/status-bar'
 import { useServer } from '@/lib/server-context'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { UsersIcon, RefreshCwIcon, UserIcon } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
+import { getPlayerKey, normalizePlayersPayload } from '@/lib/palworld'
 
 interface MobilePlayersSheetProps {
   open: boolean
@@ -17,10 +19,8 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
 
   const fetchPlayers = async () => {
     try {
-      const data = await apiCall<{ players: typeof players }>('players')
-      if (data?.players) {
-        setPlayers(data.players)
-      }
+      const payload = await apiCall<unknown>('players')
+      setPlayers(normalizePlayersPayload(payload))
     } catch {
       // Error logged in apiCall
     }
@@ -62,21 +62,25 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
           ) : (
             <div className="space-y-2">
               {players.map((player) => (
-                <div
-                  key={player.userId || player.name}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border"
+                <InfoPanel
+                  key={getPlayerKey(player)}
+                  title={player.name}
+                  subtitle={player.accountName || 'Field Operator'}
+                  status="active"
+                  className="min-h-0"
                 >
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <UserIcon className="w-5 h-5 text-primary" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <UserIcon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">
+                        Level {player.level || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">{player.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Level {player.level || 'N/A'}
-                    </p>
-                  </div>
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                </div>
+                </InfoPanel>
               ))}
             </div>
           )}

@@ -1,10 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
+import { DataCard } from '@/components/data-card'
+import { InfoPanel } from '@/components/status-bar'
 import { useServer } from '@/lib/server-context'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import {
   AlertDialog,
@@ -30,47 +33,46 @@ import {
   SettingsIcon
 } from 'lucide-react'
 
+const FPS_HISTORY_WINDOW_MS = 60 * 60 * 1000
+
+function PanelSection({
+  title,
+  subtitle,
+  status = 'active',
+  className,
+  contentClassName,
+  children,
+}: {
+  title: string
+  subtitle: string
+  status?: 'active' | 'pending' | 'complete'
+  className?: string
+  contentClassName?: string
+  children: React.ReactNode
+}) {
+  return (
+    <InfoPanel title={title} subtitle={subtitle} status={status} className={cn('h-full min-h-[18rem]', className)}>
+      <div className={cn('mt-2 space-y-4', contentClassName)}>{children}</div>
+    </InfoPanel>
+  )
+}
+
 export function ServerInfoCard() {
   const { serverInfo } = useServer()
 
   return (
-    <Card className="border-border/50 bg-card/80">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <ServerIcon className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-foreground">Server Info</CardTitle>
-            <CardDescription>View server information</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {serverInfo && (
-          <div className="p-3 rounded-lg bg-secondary/50 space-y-2 text-sm">
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground shrink-0">Name:</span>
-              <span className="text-foreground font-medium text-right truncate">{serverInfo.servername}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground shrink-0">Version:</span>
-              <span className="text-foreground font-medium">{serverInfo.version}</span>
-            </div>
-            {serverInfo.description && (
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground shrink-0">Description:</span>
-                <span className="text-foreground font-medium text-right truncate max-w-[200px]">{serverInfo.description}</span>
-              </div>
-            )}
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground shrink-0">World GUID:</span>
-              <span className="text-foreground font-medium font-mono text-xs truncate max-w-[190px]">{serverInfo.worldguid}</span>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <DataCard
+      title="Server Info"
+      subtitle="Intel Feed"
+      status={serverInfo ? 'active' : 'inactive'}
+      fields={[
+        { label: 'Name', value: serverInfo?.servername ?? 'Unavailable', highlight: true },
+        { label: 'Version', value: serverInfo?.version ?? 'N/A' },
+        { label: 'Description', value: serverInfo?.description || 'No description' },
+        { label: 'World GUID', value: serverInfo?.worldguid ?? 'Unknown' },
+      ]}
+      className="h-full"
+    />
   )
 }
 
@@ -226,19 +228,7 @@ export function AnnouncementCard() {
   }
 
   return (
-    <Card className="border-border/50 bg-card/80">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-chart-4/10 flex items-center justify-center">
-            <MegaphoneIcon className="w-5 h-5 text-chart-4" />
-          </div>
-          <div>
-            <CardTitle className="text-foreground">Announcements</CardTitle>
-            <CardDescription>Broadcast messages to players</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <PanelSection title="Announcements" subtitle="Broadcast Channel" status={activeSchedule ? 'pending' : 'active'}>
         {activeSchedule && (
           <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 text-xs">
             <div className="flex items-center gap-2">
@@ -255,13 +245,16 @@ export function AnnouncementCard() {
           <p className="text-xs font-medium text-muted-foreground">Quick Messages</p>
           <div className="flex flex-wrap gap-1.5">
             {PRESET_MESSAGES.map((preset) => (
-              <button
+              <Button
                 key={preset.label}
                 onClick={() => preset.reminders ? sendAnnouncement(preset) : setMessage(preset.message)}
-                className="text-xs px-2 py-1 rounded-md bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border transition-colors text-left"
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto whitespace-normal px-2 py-1 text-left text-xs"
               >
                 {preset.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -281,13 +274,12 @@ export function AnnouncementCard() {
         <Button
           onClick={() => sendAnnouncement()}
           disabled={isLoading['announce']}
-          className="w-full bg-chart-4 text-chart-4-foreground hover:bg-chart-4/90"
+          className="w-full bg-chart-2 text-background hover:bg-chart-2/90"
         >
           {isLoading['announce'] ? <Spinner className="w-4 h-4 mr-2" /> : <MegaphoneIcon className="w-4 h-4 mr-2" />}
           Send Announcement
         </Button>
-      </CardContent>
-    </Card>
+    </PanelSection>
   )
 }
 
@@ -370,21 +362,15 @@ export function ServerManagementCard() {
     setConfirmAction(null)
   }
 
-  return (
-    <>
-      <Card className="border-border/50 bg-card/80">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-chart-3/10 flex items-center justify-center">
-              <SettingsIcon className="w-5 h-5 text-chart-3" />
-            </div>
-            <div>
-              <CardTitle className="text-foreground">Server Management</CardTitle>
-              <CardDescription>Control server operations</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
+    return (
+      <>
+      <PanelSection
+        title="Server Management"
+        subtitle="Command Deck"
+        status={isProcessing ? 'pending' : 'active'}
+        contentClassName="mt-0 flex flex-1 flex-col justify-center space-y-0"
+      >
+          <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
           <Button
             onClick={saveWorld}
             disabled={isLoading['save'] || isProcessing}
@@ -412,8 +398,8 @@ export function ServerManagementCard() {
             <StopCircleIcon className="w-4 h-4 mr-2" />
             Force Stop
           </Button>
-        </CardContent>
-      </Card>
+          </div>
+      </PanelSection>
 
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => !isProcessing && !open && setConfirmAction(null)}>
         <AlertDialogContent>
@@ -458,19 +444,7 @@ export function BanManagementCard() {
   }
 
   return (
-    <Card className="border-border/50 bg-card/80">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-            <ShieldIcon className="w-5 h-5 text-destructive" />
-          </div>
-          <div>
-            <CardTitle className="text-foreground">Ban Management</CardTitle>
-            <CardDescription>Manage player bans</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <PanelSection title="Ban Management" subtitle="Sanctions Ledger" status={bannedPlayers.length > 0 ? 'pending' : 'active'}>
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Banned Players ({bannedPlayers.length})</p>
           {bannedPlayers.length === 0 ? (
@@ -497,65 +471,211 @@ export function BanManagementCard() {
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+    </PanelSection>
+  )
+}
+
+function FpsHistoryGraph({
+  samples,
+  currentFps,
+}: {
+  samples: { timestamp: number; fps: number }[]
+  currentFps: number | null
+}) {
+  const now = Date.now()
+  const chartSamples = samples.length > 0
+    ? samples
+    : currentFps != null
+      ? [{ timestamp: now, fps: currentFps }]
+      : []
+
+  const fpsValues = chartSamples.map((sample) => sample.fps)
+  const minFps = fpsValues.length > 0 ? Math.min(...fpsValues) : null
+  const maxFps = fpsValues.length > 0 ? Math.max(...fpsValues) : null
+  const avgFps = fpsValues.length > 0
+    ? fpsValues.reduce((sum, value) => sum + value, 0) / fpsValues.length
+    : null
+  const axisMin = minFps != null ? Math.max(0, Math.floor(minFps - 1)) : 0
+  const axisMax = maxFps != null ? Math.ceil(maxFps + 1) : Math.max(Math.ceil((currentFps ?? 0) + 1), 1)
+  const axisRange = Math.max(axisMax - axisMin, 1)
+  const yAxisLabels = React.useMemo(
+    () => Array.from({ length: 5 }, (_, index) => {
+      const ratio = 1 - index / 4
+      return axisMin + axisRange * ratio
+    }),
+    [axisMin, axisRange]
+  )
+
+  const pointString = React.useMemo(() => {
+    if (chartSamples.length === 0) {
+      return ''
+    }
+
+    const chartFloor = now - FPS_HISTORY_WINDOW_MS
+
+    return chartSamples
+      .map((sample) => {
+        const x = ((sample.timestamp - chartFloor) / FPS_HISTORY_WINDOW_MS) * 100
+        const normalizedY = (sample.fps - axisMin) / axisRange
+        const y = 100 - normalizedY * 100
+        return `${Math.min(Math.max(x, 0), 100)},${Math.min(Math.max(y, 6), 94)}`
+      })
+      .join(' ')
+  }, [axisMin, axisRange, chartSamples, now])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Server FPS</p>
+          <div className="mt-1 flex items-end gap-2">
+            <span className="font-mono text-3xl font-semibold tracking-[0.08em] text-primary">
+              {currentFps != null ? currentFps.toFixed(1) : 'N/A'}
+            </span>
+            <span className="pb-1 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Live</span>
+          </div>
+        </div>
+        <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-[0.2em]">
+          1 Hour History
+        </Badge>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
+        <div className="flex gap-3">
+          <div className="flex h-40 w-11 flex-col justify-between py-1 text-right font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            {yAxisLabels.map((label, index) => (
+              <span key={index}>{label.toFixed(0)}</span>
+            ))}
+          </div>
+
+          <div className="relative h-40 flex-1 overflow-hidden rounded-lg border border-primary/20 bg-gradient-to-b from-primary/8 via-transparent to-transparent">
+            <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
+              <defs>
+                <linearGradient id="fpsLineGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
+                </linearGradient>
+              </defs>
+
+              {[20, 40, 60, 80].map((line) => (
+                <line
+                  key={line}
+                  x1="0"
+                  x2="100"
+                  y1={line}
+                  y2={line}
+                  className="stroke-border/40"
+                  strokeDasharray="2 3"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+
+              {[25, 50, 75].map((line) => (
+                <line
+                  key={line}
+                  y1="0"
+                  y2="100"
+                  x1={line}
+                  x2={line}
+                  className="stroke-border/30"
+                  strokeDasharray="2 3"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+
+              {pointString && (
+                <polyline
+                  fill="none"
+                  points={pointString}
+                  className="text-chart-2"
+                  stroke="url(#fpsLineGradient)"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+            </svg>
+
+            {chartSamples.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                Awaiting Metrics Samples
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+          <span>-60m</span>
+          <span>-30m</span>
+          <span>Now</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Min</div>
+          <div className="mt-1 font-mono text-sm text-foreground">{minFps != null ? minFps.toFixed(1) : 'N/A'}</div>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Avg</div>
+          <div className="mt-1 font-mono text-sm text-foreground">{avgFps != null ? avgFps.toFixed(1) : 'N/A'}</div>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Max</div>
+          <div className="mt-1 font-mono text-sm text-foreground">{maxFps != null ? maxFps.toFixed(1) : 'N/A'}</div>
+        </div>
+      </div>
+    </div>
   )
 }
 
 export function MetricsCard() {
-  const { serverMetrics } = useServer()
+  const { serverMetrics, fpsHistory } = useServer()
 
   return (
-    <Card className="border-border/50 bg-card/80">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <ActivityIcon className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-foreground">Metrics</CardTitle>
-            <CardDescription>View server performance</CardDescription>
+    <PanelSection
+      title="Metrics"
+      subtitle="Live Performance"
+      status={serverMetrics ? 'active' : 'pending'}
+      className="min-h-[22rem]"
+    >
+      <FpsHistoryGraph samples={fpsHistory} currentFps={serverMetrics?.serverfps ?? null} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Players</div>
+          <div className="mt-1 font-mono text-sm text-foreground">
+            {serverMetrics ? `${serverMetrics.currentplayernum}/${serverMetrics.maxplayernum}` : 'N/A'}
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {serverMetrics && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-lg bg-secondary/50">
-              <p className="text-xs text-muted-foreground">Server FPS</p>
-              <p className="text-lg font-semibold text-foreground">{serverMetrics.serverfps}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-secondary/50">
-              <p className="text-xs text-muted-foreground">Players</p>
-              <p className="text-lg font-semibold text-foreground">{serverMetrics.currentplayernum}/{serverMetrics.maxplayernum}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-secondary/50">
-              <p className="text-xs text-muted-foreground">Frame Time</p>
-              <p className="text-lg font-semibold text-foreground">{Math.floor(serverMetrics.serverframetime ?? 0)}ms</p>
-            </div>
-            <div className="p-3 rounded-lg bg-secondary/50">
-              <p className="text-xs text-muted-foreground">Uptime</p>
-              <p className="text-lg font-semibold text-foreground">
-                {(() => {
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Frame Time</div>
+          <div className="mt-1 font-mono text-sm text-foreground">
+            {serverMetrics ? `${Math.floor(serverMetrics.serverframetime ?? 0)}ms` : 'N/A'}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Uptime</div>
+          <div className="mt-1 font-mono text-sm text-foreground">
+            {serverMetrics
+              ? (() => {
                   const u = serverMetrics.uptime || 0
                   const h = Math.floor(u / 3600)
                   const m = Math.floor((u % 3600) / 60)
                   return h > 0 ? `${h}h ${m}m` : `${m}m`
-                })()}
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-secondary/50">
-              <p className="text-xs text-muted-foreground">In-Game Days</p>
-              <p className="text-lg font-semibold text-foreground">{serverMetrics.days ?? '—'}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-secondary/50">
-              <p className="text-xs text-muted-foreground">Base Camps</p>
-              <p className="text-lg font-semibold text-foreground">{serverMetrics.basecampnum ?? '—'}</p>
-            </div>
+                })()
+              : 'N/A'}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">World Day</div>
+          <div className="mt-1 font-mono text-sm text-foreground">
+            {serverMetrics?.days != null ? `${serverMetrics.days}` : 'N/A'}
+          </div>
+        </div>
+      </div>
+    </PanelSection>
   )
 }
 
@@ -604,25 +724,20 @@ export function SettingsCard() {
   const { settings } = useServer()
 
   return (
-    <Card className="border-border/50 bg-card/80">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
-            <SettingsIcon className="w-5 h-5 text-chart-2" />
-          </div>
-          <div>
-            <CardTitle className="text-foreground">Settings</CardTitle>
-            <CardDescription>View server settings</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <PanelSection
+      title="Settings"
+      subtitle="Configuration Snapshot"
+      status={settings ? 'complete' : 'active'}
+      contentClassName="flex min-h-0 flex-col"
+    >
         {settings && (
-          <div className="p-3 rounded-lg bg-secondary/50 max-h-64 overflow-auto">
+          <div
+            className="settings-json-scroll max-h-[400px] overflow-auto rounded-lg bg-secondary/50 p-3"
+            style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
+          >
             <ColoredJson data={settings} />
           </div>
         )}
-      </CardContent>
-    </Card>
+    </PanelSection>
   )
 }

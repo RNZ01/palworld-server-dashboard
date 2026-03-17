@@ -33,11 +33,9 @@ export interface ServerMetrics {
   basecampnum: number
 }
 
-export interface ApiResponse<T = unknown> {
-  success: boolean
-  data?: T
-  error?: string
-  timestamp: Date
+export interface FpsSample {
+  timestamp: number
+  fps: number
 }
 
 export interface ConsoleLog {

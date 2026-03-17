@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Terminal } from '@/components/terminal'
 import { useServer } from '@/lib/server-context'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
-import { TerminalIcon, TrashIcon, CheckCircleIcon, XCircleIcon, InfoIcon, ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import { TrashIcon } from 'lucide-react'
 
 export function ConsolePanel() {
   const { consoleLogs, clearLogs } = useServer()
@@ -21,17 +20,6 @@ export function ConsolePanel() {
       }
       return next
     })
-  }
-
-  const getLogIcon = (type: string) => {
-    switch (type) {
-      case 'success':
-        return <CheckCircleIcon className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-      case 'error':
-        return <XCircleIcon className="w-3.5 h-3.5 text-destructive flex-shrink-0" />
-      default:
-        return <InfoIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-    }
   }
 
   const formatTime = (date: Date) => {
@@ -51,13 +39,19 @@ export function ConsolePanel() {
     }
   }
 
+  const terminalLines = consoleLogs.map((log) => ({
+    id: log.id,
+    text: `[${formatTime(log.timestamp)}] ${log.message}${log.rawResponse && expandedLogs.has(log.id) ? `\n${formatRawResponse(log.rawResponse)}` : ''}`,
+    type: (log.type === 'success' ? 'success' : log.type === 'error' ? 'error' : 'output') as 'success' | 'error' | 'output',
+    expanded: expandedLogs.has(log.id),
+    onClick: log.rawResponse ? () => toggleExpand(log.id) : undefined,
+  }))
+
   return (
-    <div className="border-t border-border bg-card/30">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <div className="flex items-center gap-2">
-          <TerminalIcon className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Console</span>
-          <span className="text-xs text-muted-foreground">({consoleLogs.length} logs)</span>
+    <div className="border-t border-border/50 bg-card/20 p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
+          Console Feed ({consoleLogs.length})
         </div>
         <Button
           variant="ghost"
@@ -69,66 +63,21 @@ export function ConsolePanel() {
           Clear
         </Button>
       </div>
-      <ScrollArea className="h-48">
-        <div className="p-2 font-mono text-xs">
-          {consoleLogs.length === 0 ? (
-            <div className="text-muted-foreground text-center py-4">
-              No logs yet. API responses will appear here.
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {consoleLogs.map((log) => {
-                const isExpanded = expandedLogs.has(log.id)
-                const hasRawResponse = !!log.rawResponse
-                
-                return (
-                  <div
-                    key={log.id}
-                    className={cn(
-                      "rounded overflow-hidden",
-                      log.type === 'error' && "bg-destructive/10",
-                      log.type === 'success' && "bg-primary/5"
-                    )}
-                  >
-                    <div 
-                      className={cn(
-                        "flex items-center gap-2 px-2 py-1.5",
-                        hasRawResponse && "cursor-pointer hover:bg-muted/30"
-                      )}
-                      onClick={() => hasRawResponse && toggleExpand(log.id)}
-                    >
-                      {hasRawResponse && (
-                        isExpanded 
-                          ? <ChevronDownIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                          : <ChevronRightIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                      )}
-                      {getLogIcon(log.type)}
-                      <span className="text-muted-foreground flex-shrink-0">{formatTime(log.timestamp)}</span>
-                      <span className={cn(
-                        "truncate",
-                        log.type === 'error' && "text-destructive",
-                        log.type === 'success' && "text-primary",
-                        log.type === 'info' && "text-foreground"
-                      )}>
-                        {log.message}
-                      </span>
-                    </div>
-                    
-                    {isExpanded && log.rawResponse && (
-                      <div className="border-t border-border/50 bg-background/50 px-3 py-2 mx-2 mb-2 rounded">
-                        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Raw Response</div>
-                        <pre className="text-[11px] text-foreground/80 whitespace-pre-wrap break-all max-h-48 overflow-auto">
-                          {formatRawResponse(log.rawResponse)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+      {consoleLogs.length === 0 ? (
+        <Terminal
+          title="SYSTEM TERMINAL"
+          lines={[{ text: 'NO LOGS YET. API RESPONSES WILL APPEAR HERE.', type: 'system' }]}
+          typewriter={false}
+          className="min-h-[14rem]"
+        />
+      ) : (
+        <Terminal
+          title="SYSTEM TERMINAL"
+          lines={terminalLines}
+          typewriter={false}
+          className="min-h-[14rem]"
+        />
+      )}
     </div>
   )
 }

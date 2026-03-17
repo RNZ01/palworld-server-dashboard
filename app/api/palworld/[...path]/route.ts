@@ -1,43 +1,84 @@
+import { Buffer } from 'node:buffer'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path } = await params
+type RouteContext = {
+  params: Promise<{ path: string[] }>
+}
+
+function getServerConfig(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const serverIp = searchParams.get('serverIp')
   const serverPort = searchParams.get('serverPort')
   const adminPassword = searchParams.get('adminPassword')
 
   if (!serverIp || !serverPort || !adminPassword) {
+    return null
+  }
+
+  return { serverIp, serverPort, adminPassword }
+}
+
+async function getUpstreamRequestBody(request: NextRequest) {
+  const contentType = request.headers.get('content-type')
+
+  if (!contentType?.includes('application/json')) {
+    return undefined
+  }
+
+  try {
+    return JSON.stringify(await request.json())
+  } catch {
+    return undefined
+  }
+}
+
+function parseProxyResponse(text: string) {
+  if (!text) {
+    return { success: true }
+  }
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { success: true, message: text }
+  }
+}
+
+async function proxyPalworldRequest(request: NextRequest, { params }: RouteContext, method: 'GET' | 'POST') {
+  const serverConfig = getServerConfig(request)
+
+  if (!serverConfig) {
     return NextResponse.json({ error: 'Missing server configuration' }, { status: 400 })
   }
 
-  const apiPath = path.join('/')
-  const url = `http://${serverIp}:${serverPort}/v1/api/${apiPath}`
+  const { path } = await params
+  const upstreamUrl = `http://${serverConfig.serverIp}:${serverConfig.serverPort}/v1/api/${path.join('/')}`
+  const body = method === 'POST' ? await getUpstreamRequestBody(request) : undefined
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await fetch(upstreamUrl, {
+      method,
       headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64'),
+        Accept: 'application/json',
+        Authorization: `Basic ${Buffer.from(`admin:${serverConfig.adminPassword}`).toString('base64')}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
+      body,
+      cache: 'no-store',
     })
+    const text = await response.text()
 
     if (!response.ok) {
-      const text = await response.text()
       return NextResponse.json(
         { error: `Server responded with ${response.status}: ${text}` },
         { status: response.status }
       )
     }
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    return NextResponse.json(parseProxyResponse(text))
   } catch (error) {
     console.error('Proxy error:', error)
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to connect to server' },
       { status: 500 }
@@ -45,70 +86,10 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path } = await params
-  const searchParams = request.nextUrl.searchParams
-  const serverIp = searchParams.get('serverIp')
-  const serverPort = searchParams.get('serverPort')
-  const adminPassword = searchParams.get('adminPassword')
+export async function GET(request: NextRequest, context: RouteContext) {
+  return proxyPalworldRequest(request, context, 'GET')
+}
 
-  if (!serverIp || !serverPort || !adminPassword) {
-    return NextResponse.json({ error: 'Missing server configuration' }, { status: 400 })
-  }
-
-  const apiPath = path.join('/')
-  const url = `http://${serverIp}:${serverPort}/v1/api/${apiPath}`
-
-  let body = null
-  const contentType = request.headers.get('content-type')
-  
-  if (contentType?.includes('application/json')) {
-    try {
-      body = await request.json()
-    } catch {
-      body = null
-    }
-  }
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': 'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64'),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-
-    if (!response.ok) {
-      const text = await response.text()
-      return NextResponse.json(
-        { error: `Server responded with ${response.status}: ${text}` },
-        { status: response.status }
-      )
-    }
-
-    // Some endpoints return empty response
-    const text = await response.text()
-    if (!text) {
-      return NextResponse.json({ success: true })
-    }
-
-    try {
-      const data = JSON.parse(text)
-      return NextResponse.json(data)
-    } catch {
-      return NextResponse.json({ success: true, message: text })
-    }
-  } catch (error) {
-    console.error('Proxy error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to connect to server' },
-      { status: 500 }
-    )
-  }
+export async function POST(request: NextRequest, context: RouteContext) {
+  return proxyPalworldRequest(request, context, 'POST')
 }
