@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Terminal } from '@/components/terminal'
+import { DataStream } from '@/components/data-stream'
 import { useServer } from '@/lib/server-context'
 import { Button } from '@/components/ui/button'
 import { TrashIcon } from 'lucide-react'
@@ -39,18 +39,19 @@ export function ConsolePanel() {
     }
   }
 
-  const terminalLines = consoleLogs.map((log) => ({
+  const streamEntries = [...consoleLogs].reverse().map((log) => ({
     id: log.id,
-    text: `[${formatTime(log.timestamp)}] ${log.message}${log.rawResponse && expandedLogs.has(log.id) ? `\n${formatRawResponse(log.rawResponse)}` : ''}`,
-    type: (log.type === 'success' ? 'success' : log.type === 'error' ? 'error' : 'output') as 'success' | 'error' | 'output',
+    timestamp: formatTime(log.timestamp),
+    text: `${log.message}${log.rawResponse && expandedLogs.has(log.id) ? `\n${formatRawResponse(log.rawResponse)}` : ''}`,
+    type: (log.type === 'success' ? 'success' : log.type === 'error' ? 'error' : 'info') as 'success' | 'error' | 'info',
     expanded: expandedLogs.has(log.id),
     onClick: log.rawResponse ? () => toggleExpand(log.id) : undefined,
   }))
 
   return (
-    <div className="border-t border-border/50 bg-card/20 p-4">
+    <div className="border-t border-border/50 bg-card/20 p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-xs sm:tracking-[0.24em]">
           Console Feed ({consoleLogs.length})
         </div>
         <Button
@@ -63,21 +64,17 @@ export function ConsolePanel() {
           Clear
         </Button>
       </div>
-      {consoleLogs.length === 0 ? (
-        <Terminal
-          title="SYSTEM TERMINAL"
-          lines={[{ text: 'NO LOGS YET. API RESPONSES WILL APPEAR HERE.', type: 'system' }]}
-          typewriter={false}
-          className="min-h-[14rem]"
-        />
-      ) : (
-        <Terminal
-          title="SYSTEM TERMINAL"
-          lines={terminalLines}
-          typewriter={false}
-          className="min-h-[14rem]"
-        />
-      )}
+      <DataStream
+        title="SYSTEM TERMINAL"
+        entries={
+          streamEntries.length > 0
+            ? streamEntries
+            : [{ text: 'NO LOGS YET. API RESPONSES WILL APPEAR HERE.', type: 'warning' as const }]
+        }
+        maxVisible={10}
+        streaming={streamEntries.length > 0}
+        className="min-h-[10rem] sm:min-h-[14rem]"
+      />
     </div>
   )
 }

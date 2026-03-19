@@ -1,6 +1,7 @@
 export interface ServerConfig {
   serverIp: string
   restApiPort: string
+  gamePort: string
   adminPassword: string
 }
 

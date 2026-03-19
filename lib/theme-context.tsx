@@ -34,7 +34,7 @@ function isGridTheme(value: string | null): value is GridTheme {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<GridTheme>('tron')
+  const [theme, setThemeState] = useState<GridTheme>('poseidon')
 
   useEffect(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY)
@@ -44,7 +44,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    document.documentElement.dataset.gridTheme = 'tron'
+    setThemeState('poseidon')
+    document.documentElement.dataset.gridTheme = 'poseidon'
   }, [])
 
   const setTheme = (nextTheme: GridTheme) => {

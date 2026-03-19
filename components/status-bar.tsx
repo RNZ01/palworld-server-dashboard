@@ -27,16 +27,16 @@ export function StatusBar({
       data-slot="tron-status-bar"
       data-variant={variant}
       className={cn(
-        "flex items-center justify-between border-y px-4 py-2 font-mono text-xs uppercase tracking-widest",
+        "flex flex-col gap-2 border-y px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:text-xs sm:tracking-widest",
         variantStyles[variant],
         className
       )}
       {...props}
     >
-      <div className="flex items-center gap-4 text-foreground/80">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-foreground/80">
         {leftContent}
       </div>
-      <div className="flex items-center gap-4 text-foreground/80">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-foreground/80 sm:justify-end">
         {rightContent}
       </div>
     </div>
@@ -75,30 +75,30 @@ export function InfoPanel({
       {...props}
     >
       {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-border/50 bg-muted/30 px-4 py-2">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2 sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
           <div className={cn("h-2 w-2 rounded-full", statusIndicator[status])} />
-          <span className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
+          <span className="max-w-[13rem] truncate font-mono text-[10px] uppercase tracking-[0.18em] text-foreground/80 sm:max-w-none sm:tracking-widest">
             {subtitle}
           </span>
         </div>
         {timestamp && (
-          <span className="font-mono text-[10px] text-foreground/80">
+          <span className="shrink-0 font-mono text-[10px] text-foreground/80">
             {timestamp}
           </span>
         )}
       </div>
 
       {/* Content */}
-      <div className="flex min-h-0 flex-1 flex-col p-4">
-        <h3 className="mb-2 font-mono text-lg font-bold uppercase tracking-wider text-foreground">
+      <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+        <h3 className="mb-2 break-words font-mono text-base font-bold uppercase tracking-[0.14em] text-foreground sm:text-lg sm:tracking-wider">
           {title}
         </h3>
         {children}
       </div>
 
       {/* Grid dots decoration */}
-      <div className="pointer-events-none absolute right-2 top-2 grid grid-cols-3 gap-1">
+      <div className="pointer-events-none absolute right-2 top-2 hidden grid-cols-3 gap-1 sm:grid">
         {Array.from({ length: 9 }).map((_, i) => (
           <div
             key={i}

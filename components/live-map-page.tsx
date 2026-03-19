@@ -12,8 +12,8 @@ export function LiveMapPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <DashboardHeader />
-      <main className="flex-1 overflow-hidden p-3 sm:p-4 lg:p-6">
-        <div className="mx-auto flex h-full max-w-[1680px] flex-col gap-4">
+      <div className="flex-1 lg:overflow-hidden">
+        <main className="mx-auto flex h-full w-full max-w-[1680px] flex-col gap-4 px-3 py-3 sm:px-4 lg:px-6 lg:py-4">
           <StatusBar
             variant={connectionStatus === 'connected' ? 'info' : connectionStatus === 'checking' ? 'default' : 'alert'}
             leftContent={
@@ -30,15 +30,15 @@ export function LiveMapPage() {
             }
           />
 
-          <div className="relative h-full min-h-[calc(100vh-8.5rem)] overflow-hidden rounded-[1.75rem] border border-border bg-card/60 shadow-2xl shadow-black/20">
-            <HUDCornerFrame position="top-left" size={48} />
-            <HUDCornerFrame position="top-right" size={48} />
-            <HUDCornerFrame position="bottom-left" size={48} />
-            <HUDCornerFrame position="bottom-right" size={48} />
-          <LiveMap />
+          <div className="relative h-full w-full min-h-[calc(100vh-8.5rem)] overflow-hidden rounded-[1.75rem] border border-border bg-card/60 shadow-2xl shadow-black/20">
+            <HUDCornerFrame position="top-left" size={48} className="hidden lg:block" />
+            <HUDCornerFrame position="top-right" size={48} className="hidden lg:block" />
+            <HUDCornerFrame position="bottom-left" size={48} className="hidden lg:block" />
+            <HUDCornerFrame position="bottom-right" size={48} className="hidden lg:block" />
+            <LiveMap />
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

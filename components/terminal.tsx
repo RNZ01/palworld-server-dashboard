@@ -16,6 +16,8 @@ interface TerminalProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string
   variant?: "default" | "danger" | "locked"
   typewriter?: boolean
+  fillHeight?: boolean
+  hideScrollbar?: boolean
 }
 
 const linePrefix: Record<string, string> = {
@@ -51,6 +53,8 @@ export function Terminal({
   title = "TERMINAL",
   variant = "default",
   typewriter = true,
+  fillHeight = false,
+  hideScrollbar = false,
   className,
   ...props
 }: TerminalProps) {
@@ -130,6 +134,7 @@ export function Terminal({
       data-variant={variant}
       className={cn(
         "relative overflow-hidden rounded border bg-card/80 backdrop-blur-sm",
+        fillHeight && "flex h-full min-h-0 flex-col",
         variantBorder[variant],
         className
       )}
@@ -175,7 +180,11 @@ export function Terminal({
       {/* Lines */}
       <div
         ref={scrollRef}
-        className="max-h-64 overflow-y-auto p-4 font-mono text-sm"
+        className={cn(
+          "overflow-y-auto p-4 font-mono text-sm",
+          fillHeight ? "min-h-0 flex-1" : "max-h-64",
+          hideScrollbar && "scrollbar-hidden"
+        )}
       >
         {lines.map((line, i) => {
           const type = line.type ?? "output"

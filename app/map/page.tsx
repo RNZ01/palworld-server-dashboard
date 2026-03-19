@@ -1,12 +1,5 @@
-'use client'
-
-import { LiveMapPage } from '@/components/live-map-page'
-import { RequireServerConfig } from '@/components/require-server-config'
+import { redirect } from 'next/navigation'
 
 export default function MapPage() {
-  return (
-    <RequireServerConfig>
-      <LiveMapPage />
-    </RequireServerConfig>
-  )
+  redirect('/')
 }

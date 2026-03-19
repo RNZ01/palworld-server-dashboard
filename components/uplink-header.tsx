@@ -31,15 +31,15 @@ export function UplinkHeader({
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-y px-4 py-1.5 font-mono text-[10px] tracking-widest",
+        "flex items-center justify-between gap-2 border-y px-3 py-1.5 font-mono text-[10px] tracking-[0.18em] sm:px-4 sm:tracking-widest",
         styles.border,
         styles.bg,
         className
       )}
       {...props}
     >
-      <span className={styles.text}>{leftText}</span>
-      {rightText && <span className={styles.textMuted}>{rightText}</span>}
+      <span className={cn(styles.text, "min-w-0 truncate")}>{leftText}</span>
+      {rightText && <span className={cn(styles.textMuted, "max-w-[55%] truncate text-right")}>{rightText}</span>}
     </div>
   )
 }

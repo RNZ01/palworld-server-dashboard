@@ -7,6 +7,7 @@ import { InfoPanel } from '@/components/status-bar'
 import { useServer } from '@/lib/server-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import {
@@ -30,10 +31,11 @@ import {
   StopCircleIcon,
   ShieldIcon,
   ActivityIcon,
-  SettingsIcon
+  SettingsIcon,
+  SearchIcon
 } from 'lucide-react'
 
-const FPS_HISTORY_WINDOW_MS = 60 * 60 * 1000
+const FPS_HISTORY_WINDOW_MS = 30 * 60 * 1000
 
 function PanelSection({
   title,
@@ -119,64 +121,25 @@ const PRESET_MESSAGES: PresetMessage[] = [
   { label: 'Maintenance soon', message: 'Maintenance starting soon. Server will go offline briefly.' },
   { label: 'Save complete',    message: 'World has been saved successfully.' },
   { label: 'Admin online',     message: 'An admin is online. Play fair!' },
+  { label: 'Restart complete', message: '✅ Server restart complete. Welcome back!' },
+  { label: 'Backup running', message: '💾 Backup is now running. Temporary lag may occur.' },
+  { label: 'Backup complete', message: '✅ Backup complete. Thank you for your patience.' },
+  { label: 'Prepare to save', message: 'Saving world in 60 seconds. Please avoid risky actions.' },
+  { label: 'PvP event soon', message: '⚔ PvP event starts in 5 minutes. Gear up and meet at base!' },
+  { label: 'Server full soon', message: 'Server population is high. Slots may fill up soon.' },
+  { label: 'High latency', message: '⚠ High latency detected. We are monitoring server performance.' },
+  { label: 'Rules reminder', message: 'Reminder: Keep chat respectful and avoid griefing.' },
+  { label: 'Admin maintenance', message: 'Admin tools maintenance in progress. Some actions may be delayed.' },
 ]
+const RESTART_PRESET_MESSAGES = PRESET_MESSAGES.filter((preset) => Array.isArray(preset.reminders))
+const GENERAL_PRESET_MESSAGES = PRESET_MESSAGES.filter((preset) => !preset.reminders)
 
 export function AnnouncementCard() {
   const { apiCall, isLoading } = useServer()
   const [message, setMessage] = useState('')
-  const [activeSchedule, setActiveSchedule] = useState<{ label: string; endsAt: number } | null>(null)
-  const [remaining, setRemaining] = useState(0)
-  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([])
-
-  // Countdown tick
-  useEffect(() => {
-    if (!activeSchedule) return
-    const iv = setInterval(() => {
-      const left = Math.max(0, activeSchedule.endsAt - Date.now())
-      setRemaining(left)
-      if (left === 0) {
-        setActiveSchedule(null)
-        clearInterval(iv)
-      }
-    }, 500)
-    return () => clearInterval(iv)
-  }, [activeSchedule])
-
-  // Clear timers without announcing (used when starting a new schedule)
-  const clearTimers = () => {
-    timerRefs.current.forEach(clearTimeout)
-    timerRefs.current = []
-    setActiveSchedule(null)
-  }
-
-  // Cancel with announcement (user clicked cancel button)
-  const cancelSchedule = async () => {
-    clearTimers()
-    try {
-      await sendMessage('✅ Server restart has been cancelled.')
-      toast.success('Restart cancelled — players notified.')
-    } catch {
-      toast.info('Schedule cancelled (announcement failed).')
-    }
-  }
 
   const sendMessage = async (text: string) => {
     await apiCall('announce', 'POST', { message: text })
-  }
-
-  const executeShutdown = async () => {
-    try {
-      // Save world first
-      await apiCall('save', 'POST')
-      await sendMessage('World has been saved successfully.')
-      toast.success('World saved before shutdown')
-      
-      // Execute shutdown
-      await apiCall('shutdown', 'POST', { waittime: 1 })
-      toast.success('Server shutdown initiated')
-    } catch {
-      toast.error('Failed to shutdown server')
-    }
   }
 
   const sendAnnouncement = async (preset?: PresetMessage) => {
@@ -189,65 +152,20 @@ export function AnnouncementCard() {
       await sendMessage(text)
       toast.success('Announcement sent')
       if (!preset) setMessage('')
-
-      if (preset?.reminders?.length) {
-        // Clear any existing timers without announcing cancellation
-        clearTimers()
-        // Find total duration from last reminder + 10 seconds for shutdown
-        const lastReminderMs = preset.reminders[preset.reminders.length - 1].delayMs
-        const shutdownDelayMs = lastReminderMs + 10_000 // 10 seconds after last reminder
-        setActiveSchedule({ label: preset.label, endsAt: Date.now() + shutdownDelayMs })
-        setRemaining(shutdownDelayMs)
-        
-        // Schedule all reminder messages
-        const refs = preset.reminders.map(({ delayMs, message: reminderMsg }) =>
-          setTimeout(async () => {
-            try { await sendMessage(reminderMsg) } catch {}
-            toast.info(reminderMsg, { duration: 4000 })
-          }, delayMs)
-        )
-        
-        // Schedule the actual shutdown after the last reminder
-        const shutdownTimer = setTimeout(async () => {
-          await executeShutdown()
-          clearTimers()
-        }, shutdownDelayMs)
-        
-        timerRefs.current = [...refs, shutdownTimer]
-      }
     } catch {
       toast.error('Failed to send announcement')
     }
   }
 
-  const formatRemaining = (ms: number) => {
-    const s = Math.ceil(ms / 1000)
-    const m = Math.floor(s / 60)
-    const sec = s % 60
-    return m > 0 ? `${m}m ${sec}s` : `${sec}s`
-  }
-
   return (
-    <PanelSection title="Announcements" subtitle="Broadcast Channel" status={activeSchedule ? 'pending' : 'active'}>
-        {activeSchedule && (
-          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-warning animate-pulse shrink-0" />
-              <span className="text-warning font-medium">{activeSchedule.label}</span>
-              <span className="text-muted-foreground">— next reminder in <span className="font-mono font-semibold text-foreground">{formatRemaining(remaining)}</span></span>
-            </div>
-            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive hover:text-destructive" onClick={cancelSchedule}>
-              Cancel
-            </Button>
-          </div>
-        )}
-        <div className="space-y-1.5">
+    <PanelSection title="Announcements" subtitle="Broadcast Channel" status="active">
+        <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">Quick Messages</p>
           <div className="flex flex-wrap gap-1.5">
-            {PRESET_MESSAGES.map((preset) => (
+            {GENERAL_PRESET_MESSAGES.map((preset) => (
               <Button
                 key={preset.label}
-                onClick={() => preset.reminders ? sendAnnouncement(preset) : setMessage(preset.message)}
+                onClick={() => setMessage(preset.message)}
                 type="button"
                 variant="outline"
                 size="sm"
@@ -287,8 +205,37 @@ export function ServerManagementCard() {
   const { apiCall, isLoading } = useServer()
   const [confirmAction, setConfirmAction] = useState<'shutdown' | 'stop' | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [activeSchedule, setActiveSchedule] = useState<{ label: string; endsAt: number } | null>(null)
+  const [remaining, setRemaining] = useState(0)
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([])
 
-  const sendAnnouncement = async (text: string) => {
+  useEffect(() => {
+    if (!activeSchedule) return
+    const iv = setInterval(() => {
+      const left = Math.max(0, activeSchedule.endsAt - Date.now())
+      setRemaining(left)
+      if (left === 0) {
+        setActiveSchedule(null)
+        clearInterval(iv)
+      }
+    }, 500)
+    return () => clearInterval(iv)
+  }, [activeSchedule])
+
+  const clearScheduleTimers = () => {
+    timerRefs.current.forEach(clearTimeout)
+    timerRefs.current = []
+    setActiveSchedule(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      timerRefs.current.forEach(clearTimeout)
+      timerRefs.current = []
+    }
+  }, [])
+
+  const announceSilently = async (text: string) => {
     try {
       await apiCall('announce', 'POST', { message: text })
     } catch {
@@ -296,10 +243,78 @@ export function ServerManagementCard() {
     }
   }
 
+  const sendRestartMessage = async (text: string) => {
+    await apiCall('announce', 'POST', { message: text })
+  }
+
+  const executeScheduledRestartShutdown = async () => {
+    try {
+      await apiCall('save', 'POST')
+      await sendRestartMessage('World has been saved successfully.')
+      toast.success('World saved before shutdown')
+
+      await apiCall('shutdown', 'POST', { waittime: 1 })
+      toast.success('Server shutdown initiated')
+    } catch {
+      toast.error('Failed to shutdown server')
+    }
+  }
+
+  const scheduleRestart = async (preset: PresetMessage) => {
+    if (!preset.reminders?.length) return
+
+    try {
+      await sendRestartMessage(preset.message)
+      toast.success('Announcement sent')
+
+      clearScheduleTimers()
+
+      const lastReminderMs = preset.reminders[preset.reminders.length - 1].delayMs
+      const shutdownDelayMs = lastReminderMs + 10_000
+      setActiveSchedule({ label: preset.label, endsAt: Date.now() + shutdownDelayMs })
+      setRemaining(shutdownDelayMs)
+
+      const refs = preset.reminders.map(({ delayMs, message: reminderMsg }) =>
+        setTimeout(async () => {
+          try {
+            await sendRestartMessage(reminderMsg)
+          } catch {}
+          toast.info(reminderMsg, { duration: 4000 })
+        }, delayMs)
+      )
+
+      const shutdownTimer = setTimeout(async () => {
+        await executeScheduledRestartShutdown()
+        clearScheduleTimers()
+      }, shutdownDelayMs)
+
+      timerRefs.current = [...refs, shutdownTimer]
+    } catch {
+      toast.error('Failed to send announcement')
+    }
+  }
+
+  const cancelRestartSchedule = async () => {
+    clearScheduleTimers()
+    try {
+      await sendRestartMessage('✅ Server restart has been cancelled.')
+      toast.success('Restart cancelled — players notified.')
+    } catch {
+      toast.info('Schedule cancelled (announcement failed).')
+    }
+  }
+
+  const formatRemaining = (ms: number) => {
+    const s = Math.ceil(ms / 1000)
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`
+  }
+
   const saveWorldAndAnnounce = async (): Promise<boolean> => {
     try {
       await apiCall('save', 'POST')
-      await sendAnnouncement('World has been saved successfully.')
+      await announceSilently('World has been saved successfully.')
       toast.success('World saved successfully')
       return true
     } catch {
@@ -324,7 +339,7 @@ export function ServerManagementCard() {
       }
       
       // Announce shutdown
-      await sendAnnouncement('⚠ Server will shutdown in 10 seconds!')
+      await announceSilently('⚠ Server will shutdown in 10 seconds!')
       toast.info('Shutdown announced - waiting 10 seconds...')
       
       // Wait 10 seconds then shutdown
@@ -351,7 +366,7 @@ export function ServerManagementCard() {
       }
       
       // Announce stop
-      await sendAnnouncement('⚠ Server force stopping now!')
+      await announceSilently('⚠ Server force stopping now!')
       
       await apiCall('stop', 'POST')
       toast.success('Server stopped')
@@ -367,15 +382,58 @@ export function ServerManagementCard() {
       <PanelSection
         title="Server Management"
         subtitle="Command Deck"
-        status={isProcessing ? 'pending' : 'active'}
-        contentClassName="mt-0 flex flex-1 flex-col justify-center space-y-0"
+        status={isProcessing || activeSchedule ? 'pending' : 'active'}
+        contentClassName="mt-0 flex flex-1 flex-col gap-3"
       >
+          {activeSchedule && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-warning" />
+                <span className="text-warning font-medium">{activeSchedule.label}</span>
+                <span className="text-muted-foreground">
+                  — next reminder in <span className="font-mono font-semibold text-foreground">{formatRemaining(remaining)}</span>
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                onClick={cancelRestartSchedule}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+
+          <div className="space-y-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5">
+            <p className="text-[11px] font-semibold text-amber-300">Restart Schedules</p>
+            <p className="text-[10px] leading-relaxed text-amber-200/85">
+              Note: Triggering a restart schedule takes effect immediately and restarts the server after the selected
+              delay. If the Docker restart policy is not set to <span className="font-mono">always</span> or{' '}
+              <span className="font-mono">unless-stopped</span>, you'll need to start it manually afterward.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {RESTART_PRESET_MESSAGES.map((preset) => (
+                <Button
+                  key={preset.label}
+                  onClick={() => scheduleRestart(preset)}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-auto whitespace-normal px-2 py-1 text-left text-xs"
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
           <Button
             onClick={saveWorld}
             disabled={isLoading['save'] || isProcessing}
-            variant="secondary"
-            className="w-full"
+            variant="outline"
+            className="w-full !border-emerald-500/60 !bg-emerald-500/12 !text-emerald-200 hover:!bg-emerald-500/22 hover:!text-emerald-100"
           >
             {isLoading['save'] ? <Spinner className="w-4 h-4 mr-2" /> : <SaveIcon className="w-4 h-4 mr-2" />}
             Save World
@@ -384,7 +442,7 @@ export function ServerManagementCard() {
             onClick={() => setConfirmAction('shutdown')}
             disabled={isProcessing}
             variant="outline"
-            className="w-full border-warning/50 text-warning hover:bg-warning/10"
+            className="w-full !border-amber-500/60 !bg-amber-500/12 !text-amber-200 hover:!bg-amber-500/22 hover:!text-amber-100"
           >
             <PowerIcon className="w-4 h-4 mr-2" />
             Shutdown Server
@@ -393,7 +451,7 @@ export function ServerManagementCard() {
             onClick={() => setConfirmAction('stop')}
             disabled={isProcessing}
             variant="outline"
-            className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+            className="w-full !border-red-500/65 !bg-red-500/14 !text-red-200 hover:!bg-red-500/24 hover:!text-red-100"
           >
             <StopCircleIcon className="w-4 h-4 mr-2" />
             Force Stop
@@ -448,7 +506,7 @@ export function BanManagementCard() {
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Banned Players ({bannedPlayers.length})</p>
           {bannedPlayers.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3">No banned players</p>
+          <p className="text-xs text-muted-foreground text-center py-3">No banned players 🎉</p>
           ) : (
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {bannedPlayers.map((banned) => (
@@ -482,9 +540,25 @@ function FpsHistoryGraph({
   samples: { timestamp: number; fps: number }[]
   currentFps: number | null
 }) {
+  const getFpsTextColorClass = (fps: number | null) => {
+    if (fps == null) {
+      return 'text-muted-foreground'
+    }
+
+    if (fps < 15) return 'text-red-500'
+    if (fps < 30) return 'text-orange-400'
+    if (fps < 45) return 'text-yellow-400'
+    if (fps < 60) return 'text-lime-400'
+    return 'text-emerald-400'
+  }
+
+  const currentFpsColorClass = getFpsTextColorClass(currentFps)
+
   const now = Date.now()
-  const chartSamples = samples.length > 0
-    ? samples
+  const cutoffTimestamp = now - FPS_HISTORY_WINDOW_MS
+  const recentSamples = samples.filter((sample) => Number.isFinite(sample.timestamp) && sample.timestamp >= cutoffTimestamp)
+  const chartSamples = recentSamples.length > 0
+    ? recentSamples
     : currentFps != null
       ? [{ timestamp: now, fps: currentFps }]
       : []
@@ -511,17 +585,22 @@ function FpsHistoryGraph({
       return ''
     }
 
-    const chartFloor = now - FPS_HISTORY_WINDOW_MS
+    const orderedSamples = [...chartSamples].sort((a, b) => a.timestamp - b.timestamp)
+    const firstTimestamp = orderedSamples[0]?.timestamp ?? 0
+    const lastTimestamp = orderedSamples[orderedSamples.length - 1]?.timestamp ?? firstTimestamp
+    const timestampSpan = Math.max(lastTimestamp - firstTimestamp, 1)
 
-    return chartSamples
+    return orderedSamples
       .map((sample) => {
-        const x = ((sample.timestamp - chartFloor) / FPS_HISTORY_WINDOW_MS) * 100
+        const x = orderedSamples.length === 1
+          ? 50
+          : ((sample.timestamp - firstTimestamp) / timestampSpan) * 100
         const normalizedY = (sample.fps - axisMin) / axisRange
         const y = 100 - normalizedY * 100
         return `${Math.min(Math.max(x, 0), 100)},${Math.min(Math.max(y, 6), 94)}`
       })
       .join(' ')
-  }, [axisMin, axisRange, chartSamples, now])
+  }, [axisMin, axisRange, chartSamples])
 
   return (
     <div className="space-y-4">
@@ -529,14 +608,14 @@ function FpsHistoryGraph({
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Server FPS</p>
           <div className="mt-1 flex items-end gap-2">
-            <span className="font-mono text-3xl font-semibold tracking-[0.08em] text-primary">
+            <span className={cn('font-mono text-3xl font-semibold tracking-[0.08em]', currentFpsColorClass)}>
               {currentFps != null ? currentFps.toFixed(1) : 'N/A'}
             </span>
             <span className="pb-1 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Live</span>
           </div>
         </div>
         <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-[0.2em]">
-          1 Hour History
+          30 Minute History
         </Badge>
       </div>
 
@@ -557,27 +636,27 @@ function FpsHistoryGraph({
                 </linearGradient>
               </defs>
 
-              {[20, 40, 60, 80].map((line) => (
+              {Array.from({ length: 11 }, (_, index) => index * 10).map((line) => (
                 <line
-                  key={line}
+                  key={`h-${line}`}
                   x1="0"
                   x2="100"
                   y1={line}
                   y2={line}
-                  className="stroke-border/40"
+                  className={line % 20 === 0 ? 'stroke-border/45' : 'stroke-border/25'}
                   strokeDasharray="2 3"
                   vectorEffect="non-scaling-stroke"
                 />
               ))}
 
-              {[25, 50, 75].map((line) => (
+              {Array.from({ length: 11 }, (_, index) => index * 10).map((line) => (
                 <line
-                  key={line}
+                  key={`v-${line}`}
                   y1="0"
                   y2="100"
                   x1={line}
                   x2={line}
-                  className="stroke-border/30"
+                  className={line % 20 === 0 ? 'stroke-border/40' : 'stroke-border/20'}
                   strokeDasharray="2 3"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -589,7 +668,7 @@ function FpsHistoryGraph({
                   points={pointString}
                   className="text-chart-2"
                   stroke="url(#fpsLineGradient)"
-                  strokeWidth="2"
+                  strokeWidth="3.5"
                   strokeLinejoin="round"
                   strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
@@ -606,8 +685,8 @@ function FpsHistoryGraph({
         </div>
 
         <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-          <span>-60m</span>
           <span>-30m</span>
+          <span>-15m</span>
           <span>Now</span>
         </div>
       </div>
@@ -615,15 +694,21 @@ function FpsHistoryGraph({
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Min</div>
-          <div className="mt-1 font-mono text-sm text-foreground">{minFps != null ? minFps.toFixed(1) : 'N/A'}</div>
+          <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(minFps))}>
+            {minFps != null ? minFps.toFixed(1) : 'N/A'}
+          </div>
         </div>
         <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Avg</div>
-          <div className="mt-1 font-mono text-sm text-foreground">{avgFps != null ? avgFps.toFixed(1) : 'N/A'}</div>
+          <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(avgFps))}>
+            {avgFps != null ? avgFps.toFixed(1) : 'N/A'}
+          </div>
         </div>
         <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Max</div>
-          <div className="mt-1 font-mono text-sm text-foreground">{maxFps != null ? maxFps.toFixed(1) : 'N/A'}</div>
+          <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(maxFps))}>
+            {maxFps != null ? maxFps.toFixed(1) : 'N/A'}
+          </div>
         </div>
       </div>
     </div>
@@ -631,7 +716,34 @@ function FpsHistoryGraph({
 }
 
 export function MetricsCard() {
-  const { serverMetrics, fpsHistory } = useServer()
+  const { serverMetrics, fpsHistory, nextMetricsFetchAt, metricsPollIntervalMs } = useServer()
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    setNow(Date.now())
+
+    if (!nextMetricsFetchAt) {
+      return
+    }
+
+    const interval = window.setInterval(() => {
+      setNow(Date.now())
+    }, 500)
+
+    return () => window.clearInterval(interval)
+  }, [nextMetricsFetchAt])
+
+  const nextFetchRemainingMs = nextMetricsFetchAt != null
+    ? Math.max(0, nextMetricsFetchAt - now)
+    : null
+
+  const formatCountdown = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
 
   return (
     <PanelSection
@@ -640,6 +752,18 @@ export function MetricsCard() {
       status={serverMetrics ? 'active' : 'pending'}
       className="min-h-[22rem]"
     >
+      <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Next Metrics Fetch</div>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <span className="font-mono text-sm text-primary">
+            {nextFetchRemainingMs != null ? formatCountdown(nextFetchRemainingMs) : 'N/A'}
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Every {Math.floor(metricsPollIntervalMs / 1000)}s
+          </span>
+        </div>
+      </div>
+
       <FpsHistoryGraph samples={fpsHistory} currentFps={serverMetrics?.serverfps ?? null} />
 
       <div className="grid grid-cols-2 gap-3">
@@ -679,13 +803,56 @@ export function MetricsCard() {
   )
 }
 
-function ColoredJson({ data }: { data: Record<string, unknown> }) {
+function highlightSearchTerm(text: string, queryLower: string) {
+  if (!queryLower) {
+    return text
+  }
+
+  const textLower = text.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const matchIndex = textLower.indexOf(queryLower, cursor)
+    if (matchIndex === -1) {
+      parts.push(text.slice(cursor))
+      break
+    }
+
+    if (matchIndex > cursor) {
+      parts.push(text.slice(cursor, matchIndex))
+    }
+
+    const matchText = text.slice(matchIndex, matchIndex + queryLower.length)
+    parts.push(
+      <span key={`${matchIndex}-${matchText}`} className="rounded-sm bg-yellow-300 px-0.5 text-yellow-950">
+        {matchText}
+      </span>
+    )
+    cursor = matchIndex + queryLower.length
+  }
+
+  return parts
+}
+
+function ColoredJson({ data, highlightQuery = '' }: { data: Record<string, unknown>; highlightQuery?: string }) {
+  const queryLower = highlightQuery.trim().toLowerCase()
   const lines = JSON.stringify(data, null, 2).split('\n')
+  const firstMatchLineIndex = React.useMemo(() => {
+    if (!queryLower) {
+      return -1
+    }
+
+    return lines.findIndex((line) => line.toLowerCase().includes(queryLower))
+  }, [lines, queryLower])
+
   return (
     <pre className="text-xs whitespace-pre-wrap font-mono leading-5">
       {lines.map((line, i) => {
+        const isFirstMatch = i === firstMatchLineIndex
+
         // Key
-        const keyMatch = line.match(/^(\s*)("[\w\s]+")\s*:(.*)$/)
+        const keyMatch = line.match(/^(\s*)("(?:[^"\\]|\\.)+")\s*:(.*)$/)
         if (keyMatch) {
           const [, indent, key, rest] = keyMatch
           const valueStr = rest.trim().replace(/,$/, '')
@@ -693,27 +860,33 @@ function ColoredJson({ data }: { data: Record<string, unknown> }) {
           let valueEl: React.ReactNode
 
           if (valueStr === 'true' || valueStr === 'false') {
-            valueEl = <span className="text-blue-400">{valueStr}</span>
+            valueEl = <span className="text-blue-400">{highlightSearchTerm(valueStr, queryLower)}</span>
           } else if (valueStr === 'null') {
-            valueEl = <span className="text-muted-foreground">{valueStr}</span>
+            valueEl = <span className="text-muted-foreground">{highlightSearchTerm(valueStr, queryLower)}</span>
           } else if (/^-?\d+(\.\d+)?$/.test(valueStr)) {
-            valueEl = <span className="text-amber-400">{valueStr}</span>
+            valueEl = <span className="text-amber-400">{highlightSearchTerm(valueStr, queryLower)}</span>
           } else if (valueStr.startsWith('"')) {
-            valueEl = <span className="text-green-400">{valueStr}</span>
+            valueEl = <span className="text-green-400">{highlightSearchTerm(valueStr, queryLower)}</span>
           } else {
-            valueEl = <span className="text-foreground">{valueStr}</span>
+            valueEl = <span className="text-foreground">{highlightSearchTerm(valueStr, queryLower)}</span>
           }
 
           return (
-            <span key={i}>
-              {indent}<span className="text-chart-1">{key}</span>
-              {': '}{valueEl}{comma}{'\n'}
+            <span key={i} className="block" data-settings-first-match={isFirstMatch ? 'true' : undefined}>
+              {indent}<span className="text-chart-1">{highlightSearchTerm(key, queryLower)}</span>
+              {': '}{valueEl}{comma}
             </span>
           )
         }
         // Braces / brackets / plain lines
         return (
-          <span key={i} className="text-muted-foreground">{line}{'\n'}</span>
+          <span
+            key={i}
+            className="block text-muted-foreground"
+            data-settings-first-match={isFirstMatch ? 'true' : undefined}
+          >
+            {highlightSearchTerm(line, queryLower)}
+          </span>
         )
       })}
     </pre>
@@ -722,6 +895,44 @@ function ColoredJson({ data }: { data: Record<string, unknown> }) {
 
 export function SettingsCard() {
   const { settings } = useServer()
+  const [searchQuery, setSearchQuery] = useState('')
+  const jsonContainerRef = useRef<HTMLDivElement | null>(null)
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const hasSearchResults = React.useMemo(() => {
+    if (!settings || !normalizedQuery) {
+      return true
+    }
+
+    return JSON.stringify(settings).toLowerCase().includes(normalizedQuery)
+  }, [settings, normalizedQuery])
+
+  useEffect(() => {
+    if (!settings || !normalizedQuery) {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const container = jsonContainerRef.current
+      const firstMatch = container?.querySelector('[data-settings-first-match="true"]') as HTMLElement | null
+      if (!container || !firstMatch) return
+
+      // Scroll only the JSON container, never the page.
+      const containerRect = container.getBoundingClientRect()
+      const matchRect = firstMatch.getBoundingClientRect()
+      const targetScrollTop =
+        container.scrollTop +
+        (matchRect.top - containerRect.top) -
+        container.clientHeight / 2 +
+        firstMatch.clientHeight / 2
+
+      container.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth',
+      })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [settings, normalizedQuery])
 
   return (
     <PanelSection
@@ -731,11 +942,31 @@ export function SettingsCard() {
       contentClassName="flex min-h-0 flex-col"
     >
         {settings && (
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="settings-search">Search Settings</FieldLabel>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+              <Input
+                id="settings-search"
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by key or value..."
+                className="h-8 pl-9 text-xs"
+              />
+            </div>
+          </div>
+        )}
+        {settings && (
           <div
+            ref={jsonContainerRef}
             className="settings-json-scroll max-h-[400px] overflow-auto rounded-lg bg-secondary/50 p-3"
             style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
           >
-            <ColoredJson data={settings} />
+            {!hasSearchResults && normalizedQuery && (
+              <p className="py-6 text-center text-xs text-muted-foreground">No settings matched your search.</p>
+            )}
+            <ColoredJson data={settings} highlightQuery={searchQuery} />
           </div>
         )}
     </PanelSection>

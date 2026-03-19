@@ -283,6 +283,286 @@
 }
 
 @layer utilities {
+  @keyframes dashboard-tab-in {
+    0% {
+      opacity: 0;
+      transform: translateY(10px) scale(0.988);
+      filter: blur(4px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes route-content-in {
+    0% {
+      opacity: 0;
+      transform: translateY(12px) scale(0.985);
+      filter: blur(6px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes login-avatar-bob {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg) scale(1);
+    }
+
+    25% {
+      transform: translateY(-1px) rotate(-1deg) scale(1.005);
+    }
+
+    50% {
+      transform: translateY(-3px) rotate(1deg) scale(1.018);
+    }
+
+    75% {
+      transform: translateY(-1px) rotate(-0.7deg) scale(1.006);
+    }
+  }
+
+  @keyframes login-avatar-ring-pulse {
+    0%,
+    100% {
+      transform: scale(0.98);
+      opacity: 0.6;
+    }
+
+    50% {
+      transform: scale(1.04);
+      opacity: 1;
+    }
+  }
+
+  @keyframes login-avatar-glow-spin {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes login-avatar-spark {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(0.8);
+      opacity: 0.35;
+    }
+
+    50% {
+      transform: translate(2px, -3px) scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  @keyframes login-avatar-image-shimmer {
+    0%,
+    100% {
+      filter: saturate(1.06) contrast(1.02) brightness(1);
+    }
+
+    50% {
+      filter: saturate(1.18) contrast(1.08) brightness(1.04);
+    }
+  }
+
+  .login-avatar-shell {
+    position: relative;
+    width: 4rem;
+    height: 4rem;
+    display: grid;
+    place-items: center;
+    isolation: isolate;
+  }
+
+  .login-avatar-core {
+    width: 4rem;
+    height: 4rem;
+    position: relative;
+    z-index: 2;
+    animation: login-avatar-bob 3.4s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent),
+      0 8px 22px color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+
+  .login-avatar-image {
+    filter: saturate(1.08) contrast(1.03);
+    animation: login-avatar-image-shimmer 2.4s ease-in-out infinite;
+  }
+
+  .login-avatar-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 0.75rem;
+    z-index: 1;
+    border: 1px solid color-mix(in oklab, var(--primary) 42%, transparent);
+    background: conic-gradient(
+      from 0deg,
+      color-mix(in oklab, var(--primary) 0%, transparent) 0deg,
+      color-mix(in oklab, var(--primary) 75%, transparent) 100deg,
+      color-mix(in oklab, var(--accent) 0%, transparent) 180deg,
+      color-mix(in oklab, var(--accent) 70%, transparent) 280deg,
+      color-mix(in oklab, var(--primary) 0%, transparent) 360deg
+    );
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent),
+      0 0 14px color-mix(in oklab, var(--primary) 45%, transparent);
+    animation:
+      login-avatar-ring-pulse 2.1s ease-in-out infinite,
+      login-avatar-glow-spin 4.8s linear infinite;
+    pointer-events: none;
+  }
+
+  .login-avatar-spark {
+    position: absolute;
+    top: 0.15rem;
+    right: 0.3rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    z-index: 3;
+    background: color-mix(in oklab, var(--accent) 76%, white 24%);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--foreground) 20%, transparent),
+      0 0 12px color-mix(in oklab, var(--accent) 75%, transparent);
+    animation: login-avatar-spark 1.9s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .route-content-transition {
+    transform-origin: center top;
+    will-change: opacity, transform, filter;
+  }
+
+  .route-content-transition-animate {
+    animation: route-content-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .dashboard-tab-content {
+    transform-origin: center top;
+    will-change: opacity, transform, filter;
+  }
+
+  .dashboard-tab-content-animate {
+    animation: dashboard-tab-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .login-avatar-core,
+    .login-avatar-ring,
+    .login-avatar-spark,
+    .login-avatar-image {
+      animation-duration: 6s !important;
+      animation-timing-function: ease-in-out !important;
+    }
+
+    .route-content-transition {
+      animation: none !important;
+    }
+
+    .route-content-transition,
+    .route-content-transition-animate {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+
+    .dashboard-tab-content-animate {
+      animation: none !important;
+    }
+  }
+
+  .dashboard-interactive-glow :is(
+    button:not([data-slot='tabs-trigger']),
+    [data-slot='button'],
+    [data-slot='select-trigger'],
+    [data-slot='dropdown-menu-trigger'],
+    [data-slot='select-item'],
+    [data-slot='switch'],
+    [data-slot='input'],
+    [data-slot='textarea'],
+    input,
+    textarea
+  ) {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent),
+      0 0 12px color-mix(in oklab, var(--primary) 24%, transparent);
+    transition: border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  }
+
+  .dashboard-interactive-glow :is(
+    button:not([data-slot='tabs-trigger']),
+    [data-slot='button'],
+    [data-slot='select-trigger'],
+    [data-slot='dropdown-menu-trigger'],
+    [data-slot='select-item'],
+    [data-slot='switch'],
+    [data-slot='input'],
+    [data-slot='textarea'],
+    input,
+    textarea
+  ):is(:hover, :focus-visible, [data-state='open'], [data-state='checked']) {
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+      0 0 18px color-mix(in oklab, var(--primary) 34%, transparent);
+  }
+
+  .dashboard-interactive-glow [data-slot='tabs-trigger'][data-state='active'] {
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+      0 0 18px color-mix(in oklab, var(--primary) 34%, transparent);
+  }
+
+  .dashboard-interactive-glow [data-slot='tabs-trigger'][data-state='inactive'] {
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+
+  .dashboard-interactive-glow [data-slot='dropdown-menu-item'][data-selected='true'] {
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+      0 0 18px color-mix(in oklab, var(--primary) 34%, transparent);
+  }
+
+  .dashboard-interactive-glow .no-interactive-glow {
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+
+  .dashboard-interactive-glow [data-slot='button']:not(.no-interactive-glow) {
+    border-color: rgb(0 212 255 / 0.8);
+    background-color: #071526;
+    color: #00d4ff;
+    box-shadow: none;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-family: var(--font-geist-mono);
+    transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+  }
+
+  .dashboard-interactive-glow [data-slot='button']:not(.no-interactive-glow):is(:hover, :focus-visible) {
+    border-color: rgb(0 212 255 / 0.85);
+    background-color: #0b213d;
+    color: #00d4ff;
+    box-shadow: none;
+  }
+
   .scrollbar-hidden {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -303,4 +583,5 @@
     display: none !important;
     background: transparent;
   }
+
 }

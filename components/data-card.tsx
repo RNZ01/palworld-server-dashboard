@@ -12,14 +12,14 @@ interface DataFieldProps {
 function DataField({ label, value, highlight = false }: DataFieldProps) {
   return (
     <div className="space-y-1">
-      <div className="text-[10px] uppercase tracking-widest text-foreground/80">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-foreground/80 sm:tracking-widest">
         {label}
       </div>
       <div className="flex items-center gap-2">
         <span className="text-primary">|</span>
         <span
           className={cn(
-            "font-mono text-sm uppercase tracking-wide",
+            "break-all font-mono text-sm uppercase tracking-[0.08em] sm:tracking-wide",
             highlight && "bg-primary/20 px-2 py-0.5"
           )}
         >
@@ -67,16 +67,16 @@ export function DataCard({
 
       {/* Header */}
       {(title || subtitle) && (
-        <div className="border-b border-border/50 px-4 py-2">
+        <div className="border-b border-border/50 px-3 py-2 sm:px-4">
           {subtitle && (
-            <div className="text-[10px] uppercase tracking-widest text-foreground/80">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-foreground/80 sm:tracking-widest">
               {subtitle}
             </div>
           )}
           {title && (
             <div className="flex items-center gap-2">
               <span className="text-primary">|</span>
-              <h3 className="text-lg font-bold uppercase tracking-wider">
+              <h3 className="break-words text-base font-bold uppercase tracking-[0.14em] sm:text-lg sm:tracking-wider">
                 {title}
               </h3>
             </div>
@@ -85,7 +85,7 @@ export function DataCard({
       )}
 
       {/* Fields */}
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-3 sm:p-4">
         {fields.map((field, index) => (
           <DataField
             key={index}

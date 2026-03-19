@@ -104,7 +104,7 @@ export function SignalIndicator({
 
       {/* Value */}
       {showValue && (
-        <span className={cn("font-mono text-xs font-bold tabular-nums", colors.text)}>
+        <span className={cn("hidden font-mono text-xs font-bold tabular-nums sm:inline", colors.text)}>
           {Math.round(clamped)}%
         </span>
       )}

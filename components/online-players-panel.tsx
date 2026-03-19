@@ -27,6 +27,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { getPlayerKey, normalizePlayersPayload } from '@/lib/palworld'
+import { getPlayerAvatarColor } from '@/lib/player-avatar-colors'
 import { toast } from 'sonner'
 import {
   RefreshCwIcon,
@@ -45,6 +46,12 @@ function getPingColor(ping: number) {
   if (ping < 80) return 'text-green-500'
   if (ping < 150) return 'text-yellow-500'
   return 'text-red-500'
+}
+
+function getPlayerInitial(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) return '?'
+  return trimmed.charAt(0).toUpperCase()
 }
 
 export function OnlinePlayersPanel() {
@@ -191,18 +198,18 @@ export function OnlinePlayersPanel() {
 
         <div className="space-y-3">
           <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
             <Input
               placeholder="Search players..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-input border-border h-9 text-sm"
+              className="pl-9 h-9 text-sm"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <Select value={refreshRate.toString()} onValueChange={(v) => setRefreshRate(parseInt(v, 10))}>
-              <SelectTrigger className="flex-1 bg-input border-border h-9 text-sm">
+              <SelectTrigger className="flex-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -244,14 +251,20 @@ export function OnlinePlayersPanel() {
             <div className="space-y-1">
               {filteredPlayers.map((player) => {
                 const isBanned = bannedPlayerIds.has(player.userId)
+                const avatarColor = getPlayerAvatarColor(getPlayerKey(player))
                 return (
                 <div
                   key={getPlayerKey(player)}
                   className={`flex items-center justify-between p-2 rounded-lg hover:bg-secondary/50 transition-colors group ${isBanned ? 'border border-destructive/30 bg-destructive/5' : ''}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isBanned ? 'bg-destructive/10' : 'bg-primary/10'}`}>
-                      <UserIcon className={`w-4 h-4 ${isBanned ? 'text-destructive' : 'text-primary'}`} />
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border border-white/20 ${isBanned ? 'ring-1 ring-destructive/60' : ''}`}
+                      style={{ backgroundColor: avatarColor }}
+                    >
+                      <span className="font-mono text-sm font-semibold text-white">
+                        {getPlayerInitial(player.name)}
+                      </span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">

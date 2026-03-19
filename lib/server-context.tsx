@@ -2,14 +2,18 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { buildPalworldApiUrl, normalizePlayersPayload } from './palworld'
+import { PLAYER_AVATAR_COLORS_STORAGE_KEY } from './player-avatar-colors'
 import type { ServerConfig, Player, ConsoleLog, ServerInfo, ServerMetrics, BannedPlayer, FpsSample } from './types'
 
 type ConnectionStatus = 'disconnected' | 'checking' | 'connected'
 
-const FPS_HISTORY_WINDOW_MS = 60 * 60 * 1000
+const FPS_HISTORY_WINDOW_MS = 30 * 60 * 1000
 const FPS_HISTORY_MAX_SAMPLES = 360
 const METRICS_POLL_INTERVAL_MS = 60 * 1000
 const LEGACY_FPS_HISTORY_STORAGE_KEY = 'fpsHistory'
+const DEFAULT_GAME_PORT = '8211'
+const THEME_STORAGE_KEY = 'grid-theme'
+const ACTIVE_SESSION_STORAGE_KEY = 'activeServerSession'
 
 const STORAGE_KEYS = {
   config: 'serverConfig',
@@ -41,6 +45,21 @@ function writeStorageValue(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
+type StoredServerConfig = Omit<ServerConfig, 'gamePort'> & Partial<Pick<ServerConfig, 'gamePort'>>
+
+function normalizeServerConfig(config: StoredServerConfig | ServerConfig | null): ServerConfig | null {
+  if (!config) {
+    return null
+  }
+
+  return {
+    serverIp: String(config.serverIp ?? '').trim(),
+    restApiPort: String(config.restApiPort ?? '').trim(),
+    gamePort: String(config.gamePort ?? DEFAULT_GAME_PORT).trim() || DEFAULT_GAME_PORT,
+    adminPassword: String(config.adminPassword ?? ''),
+  }
+}
+
 function getServerIdentity(config: Pick<ServerConfig, 'serverIp' | 'restApiPort'>) {
   return `${config.serverIp.trim()}:${config.restApiPort.trim()}`
 }
@@ -55,9 +74,21 @@ function trimFpsHistory(history: FpsSample[], now = Date.now()) {
     .slice(-FPS_HISTORY_MAX_SAMPLES)
 }
 
+function createLogId() {
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `log-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function isActiveSessionStored() {
+  return localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) === '1'
+}
+
 interface ServerContextType {
   config: ServerConfig | null
-  setConfig: (config: ServerConfig) => void
+  setConfig: (config: ServerConfig, options?: { rememberMe?: boolean }) => void
   clearConfig: () => void
   isConfigured: boolean
   players: Player[]
@@ -83,6 +114,8 @@ interface ServerContextType {
   removeBannedPlayer: (steamId: string) => void
   connectionStatus: ConnectionStatus
   lastConnectionError: string | null
+  nextMetricsFetchAt: number | null
+  metricsPollIntervalMs: number
 }
 
 const ServerContext = createContext<ServerContextType | null>(null)
@@ -111,16 +144,18 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const [bannedPlayers, setBannedPlayersState] = useState<BannedPlayer[]>([])
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
   const [lastConnectionError, setLastConnectionError] = useState<string | null>(null)
+  const [nextMetricsFetchAt, setNextMetricsFetchAt] = useState<number | null>(null)
 
   // Load from localStorage on mount
   useEffect(() => {
-    const storedConfig = readStorageValue<ServerConfig | null>(STORAGE_KEYS.config, null)
+    const storedConfig = normalizeServerConfig(readStorageValue<StoredServerConfig | null>(STORAGE_KEYS.config, null))
+    const shouldRestoreActiveSession = isActiveSessionStored()
     const storedHistory = storedConfig
       ? readStorageValue<FpsSample[]>(getFpsHistoryStorageKey(storedConfig), [])
       : readStorageValue<FpsSample[]>(LEGACY_FPS_HISTORY_STORAGE_KEY, [])
     const trimmedHistory = trimFpsHistory(storedHistory)
 
-    setConfigState(storedConfig)
+    setConfigState(shouldRestoreActiveSession ? storedConfig : null)
     setRefreshRateState(Number(localStorage.getItem(STORAGE_KEYS.refreshRate)) || 5)
     setPlayersState(normalizePlayersPayload(readStorageValue(STORAGE_KEYS.players, [])))
     setServerInfoState(readStorageValue<ServerInfo | null>(STORAGE_KEYS.serverInfo, null))
@@ -136,13 +171,27 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setIsHydrated(true)
   }, [])
 
-  const setConfig = useCallback((newConfig: ServerConfig) => {
-    setConfigState(newConfig)
+  const setConfig = useCallback((newConfig: ServerConfig, options?: { rememberMe?: boolean }) => {
+    const normalizedConfig = normalizeServerConfig(newConfig)
+    if (!normalizedConfig) {
+      return
+    }
+    const rememberMe = options?.rememberMe ?? true
+
+    setConfigState(normalizedConfig)
     setConnectionStatus('checking')
     setLastConnectionError(null)
-    setFpsHistoryState(trimFpsHistory(readStorageValue<FpsSample[]>(getFpsHistoryStorageKey(newConfig), [])))
-    writeStorageValue(STORAGE_KEYS.config, newConfig)
-    localStorage.setItem(STORAGE_KEYS.lastConnectedServer, `${newConfig.serverIp}:${newConfig.restApiPort}`)
+    setFpsHistoryState(trimFpsHistory(readStorageValue<FpsSample[]>(getFpsHistoryStorageKey(normalizedConfig), [])))
+
+    if (rememberMe) {
+      writeStorageValue(STORAGE_KEYS.config, normalizedConfig)
+      localStorage.setItem(STORAGE_KEYS.lastConnectedServer, `${normalizedConfig.serverIp}:${normalizedConfig.restApiPort}`)
+      localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, '1')
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.config)
+      localStorage.removeItem(STORAGE_KEYS.lastConnectedServer)
+      localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY)
+    }
   }, [])
 
   const clearConfig = useCallback(() => {
@@ -150,8 +199,37 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setConnectionStatus('disconnected')
     setLastConnectionError(null)
     setFpsHistoryState([])
-    localStorage.removeItem(STORAGE_KEYS.config)
-    localStorage.removeItem(STORAGE_KEYS.lastConnectedServer)
+
+    const storedConfigRaw = localStorage.getItem(STORAGE_KEYS.config)
+    let rememberedConfig: ServerConfig | null = null
+
+    if (storedConfigRaw) {
+      try {
+        rememberedConfig = normalizeServerConfig(JSON.parse(storedConfigRaw) as StoredServerConfig)
+      } catch {
+        rememberedConfig = null
+      }
+    }
+
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY)
+    const storedAvatarColors = localStorage.getItem(PLAYER_AVATAR_COLORS_STORAGE_KEY)
+
+    localStorage.clear()
+
+    if (rememberedConfig) {
+      writeStorageValue(STORAGE_KEYS.config, rememberedConfig)
+      localStorage.setItem(STORAGE_KEYS.lastConnectedServer, `${rememberedConfig.serverIp}:${rememberedConfig.restApiPort}`)
+    }
+
+    if (storedTheme) {
+      localStorage.setItem(THEME_STORAGE_KEY, storedTheme)
+    }
+
+    if (storedAvatarColors) {
+      localStorage.setItem(PLAYER_AVATAR_COLORS_STORAGE_KEY, storedAvatarColors)
+    }
+
+    localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY)
   }, [])
 
   const setPlayers = useCallback((newPlayers: Player[]) => {
@@ -221,7 +299,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const addLog = useCallback((log: Omit<ConsoleLog, 'id' | 'timestamp'>) => {
     const newLog: ConsoleLog = {
       ...log,
-      id: crypto.randomUUID(),
+      id: createLogId(),
       timestamp: new Date(),
     }
     setConsoleLogs(prev => [newLog, ...prev].slice(0, 100)) // Keep last 100 logs
@@ -368,14 +446,25 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!config || !isHydrated) {
+      setNextMetricsFetchAt(null)
       return
     }
 
+    const scheduleNextMetricsFetch = () => {
+      setNextMetricsFetchAt(Date.now() + METRICS_POLL_INTERVAL_MS)
+    }
+
+    scheduleNextMetricsFetch()
+
     const interval = window.setInterval(() => {
+      scheduleNextMetricsFetch()
       void fetchMetrics()
     }, METRICS_POLL_INTERVAL_MS)
 
-    return () => window.clearInterval(interval)
+    return () => {
+      window.clearInterval(interval)
+      setNextMetricsFetchAt(null)
+    }
   }, [config, fetchMetrics, isHydrated])
 
   useEffect(() => {
@@ -413,6 +502,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     removeBannedPlayer,
     connectionStatus,
     lastConnectionError,
+    nextMetricsFetchAt,
+    metricsPollIntervalMs: METRICS_POLL_INTERVAL_MS,
   }), [
     config,
     setConfig,
@@ -439,6 +530,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     removeBannedPlayer,
     connectionStatus,
     lastConnectionError,
+    nextMetricsFetchAt,
   ])
 
   if (!isHydrated) {

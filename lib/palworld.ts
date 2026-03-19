@@ -22,7 +22,9 @@ function extractPlayerList(payload: unknown): unknown[] {
   return []
 }
 
-export function buildPalworldApiUrl(config: ServerConfig, endpoint: string) {
+type PalworldApiConfig = Pick<ServerConfig, 'serverIp' | 'restApiPort' | 'adminPassword'>
+
+export function buildPalworldApiUrl(config: PalworldApiConfig, endpoint: string) {
   const params = new URLSearchParams({
     serverIp: config.serverIp,
     serverPort: config.restApiPort,
@@ -30,6 +32,15 @@ export function buildPalworldApiUrl(config: ServerConfig, endpoint: string) {
   })
 
   return `/api/palworld/${endpoint.replace(/^\/+/, '')}?${params.toString()}`
+}
+
+export function buildGamePortValidationUrl(serverIp: string, gamePort: string) {
+  const params = new URLSearchParams({
+    serverIp: serverIp.trim(),
+    gamePort: gamePort.trim(),
+  })
+
+  return `/api/validate-game-port?${params.toString()}`
 }
 
 export function getPlayerKey(player: Pick<Player, 'name' | 'playerId' | 'userId'>) {
