@@ -1,0 +1,90 @@
+name: Bug report
+description: Report a bug, regression, or unexpected behavior
+title: "[Bug]: "
+labels:
+  - bug
+assignees:
+  - RNZ01
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        Please include enough detail for someone else to reproduce it.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly and simply.
+      placeholder: The dashboard loads, but the player panel never updates...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: I expected the player panel to refresh every 5 minutes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps if possible.
+      placeholder: |
+        1. Open the dashboard
+        2. Connect to the server
+        3. Open the Live Map tab
+        4. Notice the markers do not update
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Connection / login
+        - API proxy
+        - Dashboard overview
+        - Player management
+        - Server controls
+        - Metrics
+        - Live map
+        - UI / styling
+        - Documentation
+        - Build / tooling
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include anything relevant about where the issue happens.
+      placeholder: |
+        OS: Windows 11
+        Node: 24.x
+        Browser: Chrome 134
+        Deployment: local dev / self-hosted / reverse proxy
+        Palworld server setup: Docker / hosted panel / bare metal
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Paste logs, console errors, or screenshots if you have them.
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help.
