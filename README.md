@@ -41,6 +41,7 @@ Sensitive data in the dashboard screenshot below has been blurred.
 - [How It Works](#how-it-works-)
 - [Requirements](#requirements-)
 - [Quick Start](#quick-start-)
+- [Docker Quick Start](#docker-quick-start-)
 - [First Connection Walkthrough](#first-connection-walkthrough-)
 - [Available Scripts](#available-scripts-)
 - [Development Notes](#development-notes-)
@@ -178,6 +179,46 @@ http://localhost:3000
 
 If you are developing from another device on your local network, the dev server also exposes a network URL when started.
 
+## Docker Quick Start 🐳
+
+If you just want to run the dashboard, you can pull the published container image instead of building from source.
+
+### Pull the Image
+
+```bash
+docker pull ghcr.io/rnz01/palworld-server-dashboard:latest
+```
+
+### Run the Image
+
+```bash
+docker run -d \
+  --name palworld-server-dashboard \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  ghcr.io/rnz01/palworld-server-dashboard:latest
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+### Run with Docker Compose
+
+This repository includes a ready-to-use [docker-compose.yml](./docker-compose.yml) that pulls the published image by default.
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Optional overrides:
+
+- `PALWORLD_SERVER_DASHBOARD_IMAGE` to point at a different tag or registry
+- `PALWORLD_SERVER_DASHBOARD_PORT` to change the host port
+
 ## First Connection Walkthrough 🧭
 
 When you open the app, you will see the login/connect screen.
@@ -275,6 +316,29 @@ The project uses Next.js standalone output, which makes self-hosting easier and 
 - containerized deployments
 - reverse-proxy setups
 
+### Container Image
+
+The production container image is published to:
+
+```text
+ghcr.io/rnz01/palworld-server-dashboard:latest
+```
+
+The image is built from the included [Dockerfile](./Dockerfile) and runs the Next.js standalone server on port `3000`.
+
+### Automatic Image Publishing
+
+The repository includes a GitHub Actions workflow at [.github/workflows/publish-docker-image.yml](./.github/workflows/publish-docker-image.yml).
+
+On every push to `main`, the workflow:
+
+- builds the Docker image
+- publishes it to GitHub Container Registry
+- updates the `latest` tag
+- publishes a commit-specific `sha-<commit>` tag
+
+If this is the first time the package is published, verify the package visibility in GitHub Packages and set it to public if needed.
+
 This app is best treated as an internal admin tool, not a public-facing website.
 
 Recommended deployment patterns:
@@ -330,6 +394,9 @@ Some especially useful files:
 - `lib/palworld.ts` - Palworld API helpers and payload normalization
 - `components/dashboard.tsx` - main dashboard shell
 - `components/live-map.tsx` - live map view
+- `Dockerfile` - production container build
+- `docker-compose.yml` - ready-to-run container deployment using the published image
+- `.github/workflows/publish-docker-image.yml` - container build and publish automation
 
 ## UI Library and Styling 🎨
 

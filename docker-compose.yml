@@ -1,0 +1,13 @@
+name: palworld-server-dashboard
+
+services:
+  palworld-server-dashboard:
+    image: ${PALWORLD_SERVER_DASHBOARD_IMAGE:-ghcr.io/rnz01/palworld-server-dashboard:latest}
+    container_name: palworld-server-dashboard
+    restart: unless-stopped
+    ports:
+      - "${PALWORLD_SERVER_DASHBOARD_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
