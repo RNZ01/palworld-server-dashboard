@@ -36,6 +36,7 @@ Sensitive data in the dashboard screenshot below has been blurred.
 ## Table of Contents
 
 - [Live Demo](#live-demo-)
+- [Project Status](#project-status-)
 - [Overview](#overview-)
 - [Features](#features-)
 - [How It Works](#how-it-works-)
@@ -53,6 +54,12 @@ Sensitive data in the dashboard screenshot below has been blurred.
 - [Contributing](#contributing-)
 - [Tech Stack](#tech-stack-)
 - [License](#license-)
+
+## Project Status ⚠️
+
+This is a hobby project that was largely vibe-coded and shared in good faith, so expect rough edges, bugs, missing safeguards, and breaking changes over time.
+
+Please treat it as a self-hosted community tool, not a guaranteed production platform. You are responsible for reviewing, testing, securing, and operating your own deployment.
 
 ## Overview 🎮
 
@@ -182,6 +189,17 @@ If you are developing from another device on your local network, the dev server 
 ## Docker Quick Start 🐳
 
 If you just want to run the dashboard, you can pull the published container image instead of building from source.
+
+Before using the commands below, install Docker first:
+
+- Docker Desktop is the easiest recommended option because it includes Docker Engine and Docker Compose on Windows, macOS, and Linux
+- if you are on Linux and already manage Docker yourself, Docker Engine plus the Docker Compose plugin also works
+
+Official install docs:
+
+- [Docker Desktop](https://docs.docker.com/desktop/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
+- [Docker Engine](https://docs.docker.com/engine/install/)
 
 ### Pull the Image
 
@@ -375,6 +393,20 @@ If you plan to deploy this for regular use:
 - keep it on a trusted network
 - use HTTPS if exposed beyond your LAN
 - avoid sharing browser profiles that have saved credentials
+
+### Use at Your Own Risk
+
+This project is provided as-is, without warranty or liability.
+
+By using it, you accept responsibility for common self-hosting risks such as:
+
+- misconfiguration
+- downtime
+- broken updates
+- security exposure
+- credential leakage on your own devices
+- data loss or world-state issues
+- moderation mistakes or unintended server actions
 
 ## Project Structure 🗂️
 
