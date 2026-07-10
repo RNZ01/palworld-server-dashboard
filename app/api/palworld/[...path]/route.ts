@@ -74,19 +74,17 @@ function buildUpstreamBaseUrl(serverIp: string, serverPort: number) {
 
 function getServerConfig(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
-  const serverIp =
-    request.headers.get(PALWORLD_PROXY_HEADERS.serverIp) ??
-    searchParams.get('serverIp') ??
-    ''
-  const serverPortRaw =
-    request.headers.get(PALWORLD_PROXY_HEADERS.serverPort) ??
-    searchParams.get('serverPort') ??
-    ''
+  // SECURITY: the upstream REST target is PINNED server-side and is NOT
+  // client-controllable. Before this, the proxy connected to any client-supplied
+  // host:port — an SSRF once the panel is WAN-exposed (probe/POST to internal
+  // hosts like 127.0.0.1:5432). Client serverIp/serverPort are now ignored.
+  const pinned = new URL(process.env.PALWORLD_REST_URL ?? 'http://127.0.0.1:8212')
+  const serverIp = pinned.hostname
+  const serverPort = parsePort(pinned.port || '8212')
   const adminPassword =
     request.headers.get(PALWORLD_PROXY_HEADERS.adminPassword) ??
     searchParams.get('adminPassword') ??
     ''
-  const serverPort = parsePort(serverPortRaw.trim())
 
   // perlica shim (2026-07-10): the browser never holds the real game admin
   // credential. Panel passwords are swapped server-side:
@@ -113,7 +111,7 @@ function getServerConfig(request: NextRequest) {
     effectivePassword = realAdmin
   }
 
-  if (!serverIp.trim() || serverPort == null || !adminPassword) {
+  if (serverPort == null || !adminPassword) {
     return null
   }
 
