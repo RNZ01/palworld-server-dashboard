@@ -18,7 +18,7 @@ import type { Player } from '@/lib/types'
 import points from '@/lib/map-points.json'
 
 const LANDSCAPE = [349400, 724400, -1099400, -724400] as const // DT-exact: DT_WorldMapUIData MainMap landScapeRealPositionMax/Min (pak v1.0) — pairs ONLY with the pak-native T_WorldMap image below
-const MAP_IMAGE_URL = '/palworld-map/full-map-native-8192.avif' // pak-native T_WorldMap 8192x8192 (DXT1→PNG→AVIF 2x2 grid, 2026-07-10) — corner-to-corner match to the DT-exact LANDSCAPE above; paldb stitch kept as fallback asset
+const MAP_IMAGE_URL = '/palworld-map/full-map-native-8192.webp' // WebP for universal browser support incl. Firefox (grid-AVIF failed to render in FF); 3.0MB, same size as the AVIF. AVIF kept on disk as fallback.
 const MIN_ZOOM = 0
 const MAX_ZOOM = 10
 const MAP_SIZE_FALLBACK = 920
