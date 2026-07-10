@@ -558,12 +558,13 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
       >
         <div
           ref={mapPlaneRef}
-          className="absolute left-0 top-0"
+          className="absolute left-0 top-0 will-change-transform"
           style={{
             width: `${MAP_BASIS}px`,
             height: `${MAP_BASIS}px`,
             transform: `translate(${view?.tx ?? 0}px, ${view?.ty ?? 0}px) scale(${scale})`,
             transformOrigin: '0 0',
+            transition: isDragging ? 'none' : 'transform 90ms cubic-bezier(0.2, 0, 0.2, 1)',
           }}
         >
           <img
