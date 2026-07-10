@@ -717,14 +717,14 @@ function FpsHistoryGraph({
                 />
               ))}
 
-              {Array.from({ length: 11 }, (_, index) => index).map((index) => (
+              {Array.from({ length: 5 }, (_, index) => index).map((index) => (
                 <line
                   key={`v-${index}`}
                   y1="0"
                   y2={chartSize.height}
-                  x1={(index / 10) * chartSize.width}
-                  x2={(index / 10) * chartSize.width}
-                  className={index % 2 === 0 ? 'stroke-border/40' : 'stroke-border/20'}
+                  x1={(index / 4) * chartSize.width}
+                  x2={(index / 4) * chartSize.width}
+                  className="stroke-border/40"
                   strokeDasharray="2 3"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -753,9 +753,9 @@ function FpsHistoryGraph({
         </div>
 
         <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-          <span>{formatAxisAge(FPS_HISTORY_WINDOW_MS)}</span>
-          <span>{formatAxisAge(FPS_HISTORY_WINDOW_MS / 2)}</span>
-          <span>Now</span>
+          {Array.from({ length: 5 }, (_, i) => (
+            <span key={i}>{i === 4 ? 'Now' : formatAxisAge((FPS_HISTORY_WINDOW_MS * (4 - i)) / 4)}</span>
+          ))}
         </div>
       </div>
 
