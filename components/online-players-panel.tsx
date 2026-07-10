@@ -111,15 +111,15 @@ export function OnlinePlayersPanel() {
 
   // Restart interval when refreshRate changes (no immediate fetch)
   useEffect(() => {
-    const interval = setInterval(() => fetchPlayers(), refreshRate * 60 * 1000)
+    const interval = setInterval(() => fetchPlayers(), refreshRate * 1000) // SECONDS (owner: 1s; was minutes)
     return () => clearInterval(interval)
   }, [fetchPlayers, refreshRate])
 
   // Countdown timer
   useEffect(() => {
-    setCountdown(refreshRate * 60)
+    setCountdown(refreshRate)
     const countdownInterval = setInterval(() => {
-      setCountdown(prev => (prev > 0 ? prev - 1 : refreshRate * 60))
+      setCountdown(prev => (prev > 0 ? prev - 1 : refreshRate))
     }, 1000)
     return () => clearInterval(countdownInterval)
   }, [refreshRate])
@@ -131,7 +131,7 @@ export function OnlinePlayersPanel() {
   }
 
   const handleManualRefresh = () => {
-    setCountdown(refreshRate * 60)
+    setCountdown(refreshRate)
     void fetchPlayers(true)
     void fetchAllData()
   }
@@ -230,10 +230,10 @@ export function OnlinePlayersPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">1 min</SelectItem>
-                <SelectItem value="2">2 min</SelectItem>
-                <SelectItem value="5">5 min</SelectItem>
-                <SelectItem value="10">10 min</SelectItem>
+                <SelectItem value="1">1 sec</SelectItem>
+                <SelectItem value="5">5 sec</SelectItem>
+                <SelectItem value="15">15 sec</SelectItem>
+                <SelectItem value="60">60 sec</SelectItem>
               </SelectContent>
             </Select>
             <Button
