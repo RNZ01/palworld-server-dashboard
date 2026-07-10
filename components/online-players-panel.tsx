@@ -58,7 +58,7 @@ export function OnlinePlayersPanel() {
   const { apiCall, players, setPlayers, refreshRate, setRefreshRate, isLoading, fetchAllData, addBannedPlayer, bannedPlayers, removeBannedPlayer } = useServer()
   const [search, setSearch] = useState('')
   const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; player: Player } | null>(null)
-  const [countdown, setCountdown] = useState(refreshRate * 60)
+  const [countdown, setCountdown] = useState(refreshRate)
   const previousPlayersRef = useRef<Player[]>(players)
   const refreshRateRef = useRef(refreshRate)
 
@@ -96,7 +96,7 @@ export function OnlinePlayersPanel() {
     }
 
     if (!isManual) {
-      setCountdown(refreshRateRef.current * 60)
+      setCountdown(refreshRateRef.current)
     }
   }, [apiCall, setPlayers])
 
