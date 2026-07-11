@@ -153,7 +153,6 @@ export function ChatPanel() {
       title="Chat"
       subtitle="Live Game Chat"
       status="active"
-      className="min-h-[26rem]"
       contentClassName="mt-0 flex min-h-0 flex-1 flex-col gap-3"
     >
       {/* Console-style feed shell (DataStream aesthetic). */}
@@ -166,18 +165,20 @@ export function ChatPanel() {
           <span className="ml-auto font-mono text-[10px] text-foreground/40">{events.length}</span>
         </div>
 
-        <div
-          ref={feedRef}
-          onScroll={handleScroll}
-          className="scrollbar-hidden relative z-10 min-h-0 flex-1 overflow-y-auto font-mono text-xs"
-        >
-          {events.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-4 py-8 text-center font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-              No chat yet. Player messages will appear here.
-            </div>
-          ) : (
-            events.map((event, index) => <ChatRow key={eventKey(event, index)} event={event} />)
-          )}
+        <div className="relative z-10 min-h-0 flex-1">
+          <div
+            ref={feedRef}
+            onScroll={handleScroll}
+            className="scrollbar-hidden absolute inset-0 overflow-y-auto font-mono text-xs"
+          >
+            {events.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-4 py-8 text-center font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                No chat yet. Player messages will appear here.
+              </div>
+            ) : (
+              events.map((event, index) => <ChatRow key={eventKey(event, index)} event={event} />)
+            )}
+          </div>
         </div>
       </div>
 
