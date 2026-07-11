@@ -83,7 +83,7 @@ export function ChatPanel() {
         if (!response.ok) return
         const data = (await response.json()) as { events?: ChatEvent[] }
         if (!cancelled && Array.isArray(data.events)) {
-          setEvents(data.events)
+          setEvents(data.events.filter((e: ChatEvent) => e.type === 'chat'))
         }
       } catch {
         // Transient network hiccup — keep the last feed we had.
