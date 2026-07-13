@@ -6,9 +6,13 @@ import type { ServerConfig, Player, ConsoleLog, ServerInfo, ServerMetrics, Banne
 
 type ConnectionStatus = 'disconnected' | 'checking' | 'connected'
 
-const FPS_HISTORY_WINDOW_MS = 4 * 60 * 60 * 1000
-const FPS_HISTORY_MAX_SAMPLES = 2880 // 4h at the 5s metrics cadence
-const METRICS_POLL_INTERVAL_MS = 5 * 1000 // 5s cadence keeps the 4h FPS history (2880 samples) populated
+const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000
+const FPS_HISTORY_MAX_SAMPLES = 720 // 1h at the 5s metrics cadence
+const METRICS_POLL_INTERVAL_MS = 5 * 1000 // 5s cadence keeps the 1h FPS history (720 samples) populated
+
+// Roster refresh-rate policy: REST polls are served on the game server's main thread — keep a floor.
+const REFRESH_RATE_DEFAULT_S = 10
+const clampRefreshRate = (rate: number) => Math.min(Math.max(rate, 5), 60)
 const LEGACY_FPS_HISTORY_STORAGE_KEY = 'fpsHistory'
 const DEFAULT_GAME_PORT = '8211'
 const ACTIVE_SESSION_STORAGE_KEY = 'activeServerSession'
@@ -154,7 +158,7 @@ export function useServer() {
 export function ServerProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<ServerConfig | null>(null)
   const [players, setPlayersState] = useState<Player[]>([])
-  const [refreshRate, setRefreshRateState] = useState<number>(5)
+  const [refreshRate, setRefreshRateState] = useState<number>(REFRESH_RATE_DEFAULT_S)
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([])
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [isHydrated, setIsHydrated] = useState(false)
@@ -177,7 +181,9 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     const trimmedHistory = trimFpsHistory(storedHistory)
 
     setConfigState(shouldRestoreActiveSession ? storedConfig : null)
-    setRefreshRateState(Math.min(Number(localStorage.getItem(STORAGE_KEYS.refreshRate)) || 5, 60)) // seconds; default 5s (owner 2026-07-11), stale minute-era values clamp to 60s
+    const storedRefreshRate = clampRefreshRate(Number(localStorage.getItem(STORAGE_KEYS.refreshRate)) || REFRESH_RATE_DEFAULT_S) // seconds; stale minute-era values clamp to 60s
+    setRefreshRateState(storedRefreshRate)
+    localStorage.setItem(STORAGE_KEYS.refreshRate, storedRefreshRate.toString()) // write-back so storage can't keep a sub-floor value
     setPlayersState(normalizePlayersPayload(readStorageValue(STORAGE_KEYS.players, [])))
     setServerInfoState(readStorageValue<ServerInfo | null>(STORAGE_KEYS.serverInfo, null))
     setServerMetricsState(readStorageValue<ServerMetrics | null>(STORAGE_KEYS.serverMetrics, null))
@@ -218,7 +224,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const clearConfig = useCallback(() => {
     setConfigState(null)
     setPlayersState([])
-    setRefreshRateState(1)
+    setRefreshRateState(REFRESH_RATE_DEFAULT_S) // was 1 — bypassed the floor and reinstated a 1s poll on disconnect->reconnect
     setConsoleLogs([])
     setIsLoading({})
     setConnectionStatus('disconnected')
@@ -256,8 +262,9 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setRefreshRate = useCallback((rate: number) => {
-    setRefreshRateState(rate)
-    localStorage.setItem(STORAGE_KEYS.refreshRate, rate.toString())
+    const clamped = clampRefreshRate(rate)
+    setRefreshRateState(clamped)
+    localStorage.setItem(STORAGE_KEYS.refreshRate, clamped.toString())
   }, [])
 
   const setServerInfo = useCallback((info: ServerInfo | null) => {

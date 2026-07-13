@@ -121,8 +121,8 @@ export function OnlinePlayersPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">1 sec</SelectItem>
                 <SelectItem value="5">5 sec</SelectItem>
+                <SelectItem value="10">10 sec</SelectItem>
                 <SelectItem value="15">15 sec</SelectItem>
                 <SelectItem value="60">60 sec</SelectItem>
               </SelectContent>

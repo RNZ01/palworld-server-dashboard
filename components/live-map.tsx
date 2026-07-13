@@ -30,7 +30,7 @@ const MIN_ZOOM = 0
 const MAX_ZOOM = 10
 const MAP_SIZE_FALLBACK = 920
 const MAP_BASIS = 8192 // native image layout: GPU layer caches full-res once; zoom = pure scale (owner spec 2026-07-10)
-const REFRESH_INTERVAL_MS = 1000 // OWNER: 1s player positions. DO NOT REVERT.
+const REFRESH_INTERVAL_MS = 5000 // 5s player positions: REST /players is served on the game thread — measured ~1.2pp tick cost per req/s on a live 15-player server
 
 interface PlayerMarkerGroup {
   id: string
@@ -683,7 +683,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
         </div>
 
         {/* Marker overlay: parallel layer with identical transform — keeps the image
-            layer's raster UNTOUCHED by 1s marker updates and zoom counter-scaling
+            layer's raster UNTOUCHED by periodic marker updates and zoom counter-scaling
             (owner-diagnosed repaint storm, 2026-07-10) */}
         <div
           ref={markerPlaneRef}

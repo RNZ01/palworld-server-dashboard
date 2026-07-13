@@ -10,8 +10,8 @@ import { cn } from '@/lib/utils'
 import { LogOutIcon, SearchIcon } from 'lucide-react'
 
 // Widget-local roster poll cadence. Deliberately calmer than the admin
-// sidebar's 1s default — this view targets phones over WAN.
-const WIDGET_PLAYERS_POLL_INTERVAL_MS = 5_000
+// sidebar's default (10s) — this view targets phones over WAN.
+const WIDGET_PLAYERS_POLL_INTERVAL_MS = 15_000
 
 // Matches the dashboard header's connection dot palette.
 const CONNECTION_DOT_CLASS: Record<'connected' | 'checking' | 'disconnected', string> = {

@@ -29,7 +29,7 @@ import {
   SearchIcon
 } from 'lucide-react'
 
-const FPS_HISTORY_WINDOW_MS = 4 * 60 * 60 * 1000
+const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000 // keep in sync with lib/server-context.tsx
 
 export function PanelSection({
   title,
@@ -655,8 +655,8 @@ function FpsHistoryGraph({
     }
 
     const { width, height } = chartSize
-    // Plot against the FIXED window [now-4h, now] so the line sits at its true
-    // temporal position (right edge = now); the chart shows a real 4h axis even
+    // Plot against the FIXED window [now-FPS_HISTORY_WINDOW_MS, now] so the line sits at its
+    // true temporal position (right edge = now); the chart shows the real axis even
     // before the buffer fills, instead of stretching whatever data exists to full width.
     const yPadding = height * 0.06
 
@@ -689,7 +689,7 @@ function FpsHistoryGraph({
             Metrics · every {Math.floor(pollIntervalMs / 1000)}s
           </span>
           <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-[0.2em]">
-            4 Hour History
+            1 Hour History
           </Badge>
         </div>
       </div>
