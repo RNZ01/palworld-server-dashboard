@@ -1,0 +1,50 @@
+# Example systemd unit for the server-side FPS sampler (bare-metal installs).
+#
+# Setup:
+#   1. Copy palworld-fps-sampler.py somewhere executable, e.g.
+#        install -m 755 palworld-fps-sampler.py /usr/local/bin/palworld-fps-sampler.py
+#   2. Create an env file with the sampler's configuration, e.g. /etc/palworld-dashboard/sampler.env:
+#        PALWORLD_REST_URL=http://127.0.0.1:8212
+#        PALWORLD_ADMIN_PASSWORD=your-real-palworld-admin-password
+#        FPS_HISTORY_FILE=/run/palworld-metrics/fps-history.json
+#      (chmod 600 — it contains the game admin password.)
+#   3. Point the dashboard at the same file: PALWORLD_FPS_HISTORY_FILE=/run/palworld-metrics/fps-history.json
+#   4. install -m 644 palworld-fps-sampler.service.example /etc/systemd/system/palworld-fps-sampler.service
+#      systemctl daemon-reload && systemctl enable --now palworld-fps-sampler
+#
+# Run it as the same (unprivileged) user the dashboard runs as, or any user that
+# can reach the REST API — adjust User=/Group= below.
+
+[Unit]
+Description=Palworld FPS history sampler (rolling ring for the dashboard's FPS histogram)
+# Deliberately NOT bound to the game server's unit: the sampler keeps running
+# while the server is down and records nothing, so downtime renders as an
+# honest gap in the panel instead of vanishing.
+After=network.target
+
+[Service]
+Type=simple
+User=palworld
+Group=palworld
+EnvironmentFile=/etc/palworld-dashboard/sampler.env
+ExecStart=/usr/bin/python3 /usr/local/bin/palworld-fps-sampler.py
+# Ring lives here; Preserve=yes so a sampler restart does NOT wipe the window.
+RuntimeDirectory=palworld-metrics
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+Restart=always
+RestartSec=5
+Nice=10
+MemoryMax=128M
+# Hardening: read-only system, write access only to the ring directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/run/palworld-metrics
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

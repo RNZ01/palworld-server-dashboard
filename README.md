@@ -43,6 +43,7 @@ Sensitive data in the dashboard screenshot below has been blurred.
 - [Requirements](#requirements-)
 - [Quick Start](#quick-start-)
 - [Docker Quick Start](#docker-quick-start-)
+- [Server-Side FPS History](#server-side-fps-history-)
 - [First Connection Walkthrough](#first-connection-walkthrough-)
 - [Available Scripts](#available-scripts-)
 - [Development Notes](#development-notes-)
@@ -111,8 +112,15 @@ The control cards let you handle common admin actions:
 
 The metrics panel helps you keep an eye on performance:
 
-- live FPS
-- FPS history graph
+- live FPS with a general-health verdict pill (composite score across all FPS
+  signals — weighted blend plus veto floors so one critical signal alone can
+  drag the verdict; hover it for the full breakdown)
+- FPS history graph fed by a server-side sampler — populated for the full
+  window even while the panel is closed, with honest gaps for downtime
+  (see [Server-Side FPS History](#server-side-fps-history-))
+- health tiles: Min / Avg / Max plus Median (the structural plateau),
+  Longest <45 (worst continuous dip), and Under 30 (share of the window
+  below 30 FPS)
 - frame time
 - uptime
 - player capacity
@@ -236,6 +244,48 @@ Optional overrides:
 
 - `PALWORLD_SERVER_DASHBOARD_IMAGE` to point at a different tag or registry
 - `PALWORLD_SERVER_DASHBOARD_PORT` to change the host port
+
+## Server-Side FPS History 📈
+
+The FPS histogram is fed by a small **server-side sampler**, not by the browser.
+A stdlib-only Python script (`scripts/fps-sampler/palworld-fps-sampler.py`)
+polls the game's `/v1/api/metrics` endpoint (default: every 5 s) and maintains a
+rolling ring file covering the last hour. The panel reads that ring through its
+own authenticated API and simply displays it.
+
+Why it works this way:
+
+- **Always populated** — the full window of history is there the moment you open
+  the panel, even if nobody had it open. Browser tabs (hidden-tab timer
+  throttling, closed panels) can no longer thin out or lose history.
+- **Honest gaps** — if the game server (or the sampler) is down, nothing is
+  recorded and the chart shows a gap instead of a made-up bridging line. The
+  health verdict pill reports `No Data` / `Stale` / `Calibrating` instead of
+  guessing.
+- **Cheap** — one request every 5 s against the local REST API, atomic file
+  writes, a few dozen kilobytes of state.
+
+**Docker Compose:** nothing to do — `docker-compose.yml` runs the sampler as a
+`python:3.12-alpine` sidecar sharing a metrics volume with the panel.
+
+**Bare metal:** copy the script somewhere permanent, point it at your server
+with `PALWORLD_REST_URL` / `PALWORLD_ADMIN_PASSWORD`, and keep it running —
+`scripts/fps-sampler/palworld-fps-sampler.service.example` is a hardened
+systemd unit template with setup steps in its header. Set
+`PALWORLD_FPS_HISTORY_FILE` for the panel to the same path the sampler writes.
+
+Sampler configuration (all optional):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PALWORLD_REST_URL` | `http://127.0.0.1:8212` | Game REST API base URL |
+| `PALWORLD_ADMIN_PASSWORD` | — (required) | Game REST admin password |
+| `FPS_HISTORY_FILE` | `/run/palworld-metrics/fps-history.json` | Ring file path |
+| `FPS_SAMPLE_SECONDS` | `5` | Poll cadence (1-60) |
+| `FPS_WINDOW_MINUTES` | `60` | History window (5-1440) |
+
+Without a running sampler the panel still works — the FPS graph and health
+tiles just report no data.
 
 ## First Connection Walkthrough 🧭
 

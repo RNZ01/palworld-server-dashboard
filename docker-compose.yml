@@ -23,12 +23,37 @@ services:
       PALWORLD_REST_URL: ${PALWORLD_REST_URL:-http://host.docker.internal:8212}
       PANEL_AUTH_FILE: /app/data/panel-auth.json
       RATE_LIMIT_TRUST_PROXY: ${RATE_LIMIT_TRUST_PROXY:-false}
+      # FPS history ring written by the palworld-fps-sampler sidecar below.
+      PALWORLD_FPS_HISTORY_FILE: /metrics/fps-history.json
     volumes:
       # Persist the panel credential store across container recreation.
       - palworld-dashboard-data:/app/data
+      # Read-only view of the FPS ring maintained by the sampler sidecar.
+      - palworld-fps-metrics:/metrics:ro
     extra_hosts:
       # Lets PALWORLD_REST_URL=host.docker.internal reach the host on Linux.
       - "host.docker.internal:host-gateway"
 
+  # Server-side FPS history sampler: keeps the dashboard's FPS histogram
+  # populated for the full window even while nobody has the panel open.
+  # Stdlib-only Python — no image build, no pip installs.
+  palworld-fps-sampler:
+    image: python:3.12-alpine
+    container_name: palworld-fps-sampler
+    restart: unless-stopped
+    command: ["python", "/sampler/palworld-fps-sampler.py"]
+    environment:
+      PALWORLD_REST_URL: ${PALWORLD_REST_URL:-http://host.docker.internal:8212}
+      PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD:?set PALWORLD_ADMIN_PASSWORD (the real Palworld REST admin password) in .env}
+      FPS_HISTORY_FILE: /metrics/fps-history.json
+      FPS_SAMPLE_SECONDS: ${FPS_SAMPLE_SECONDS:-5}
+      FPS_WINDOW_MINUTES: ${FPS_WINDOW_MINUTES:-60}
+    volumes:
+      - ./scripts/fps-sampler:/sampler:ro
+      - palworld-fps-metrics:/metrics
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   palworld-dashboard-data:
+  palworld-fps-metrics:
