@@ -1,3 +1,4 @@
+
 # Palworld Server Dashboard
 
 A self-hosted web dashboard for operating a Palworld dedicated server through the Palworld REST API.
