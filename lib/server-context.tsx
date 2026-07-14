@@ -6,9 +6,13 @@ import type { ServerConfig, Player, ConsoleLog, ServerInfo, ServerMetrics, Banne
 
 type ConnectionStatus = 'disconnected' | 'checking' | 'connected'
 
-const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000 // owner 2026-07-13: 1h (was 4h)
-const FPS_HISTORY_MAX_SAMPLES = 720 // 1h at the 5s metrics cadence
-const METRICS_POLL_INTERVAL_MS = 5 * 1000 // owner fix 2026-07-10: 60s starved the FPS graph; 5s feeds the 720-sample/1h history buffer
+// FPS history is SERVER-SIDE (owner order 2026-07-13): palworld-fps-sampler.service
+// maintains the authoritative 1h ring (5s cadence) in /run/palworld-metrics and the
+// panel only fetches + displays it via /api/fps-history — the browser never collects.
+// These constants sanitize the fetched payload and must match the sampler.
+const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000
+const FPS_HISTORY_MAX_SAMPLES = 720 // 1h at the sampler's 5s cadence
+const METRICS_POLL_INTERVAL_MS = 5 * 1000 // live metrics poll; also drives the fps-history re-fetch
 
 // Roster refresh-rate policy (owner 2026-07-13): REST polls cost PalServer game-thread time.
 const REFRESH_RATE_DEFAULT_S = 10
@@ -76,14 +80,6 @@ function normalizeServerConfig(config: StoredServerConfig | ServerConfig | null)
     // on every request, so a tampered stored tier gains nothing server-side.
     accessTier: config.accessTier === 'mod' ? 'mod' : 'admin',
   }
-}
-
-function getServerIdentity(config: Pick<ServerConfig, 'serverIp' | 'restApiPort'>) {
-  return `${config.serverIp.trim()}:${config.restApiPort.trim()}`
-}
-
-function getFpsHistoryStorageKey(config: Pick<ServerConfig, 'serverIp' | 'restApiPort'>) {
-  return `${STORAGE_KEYS.fpsHistory}:${getServerIdentity(config)}`
 }
 
 function clearServerStorage() {
@@ -175,10 +171,11 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const storedConfig = normalizeServerConfig(readStorageValue<StoredServerConfig | null>(STORAGE_KEYS.config, null))
     const shouldRestoreActiveSession = isActiveSessionStored()
-    const storedHistory = storedConfig
-      ? readStorageValue<FpsSample[]>(getFpsHistoryStorageKey(storedConfig), [])
-      : readStorageValue<FpsSample[]>(LEGACY_FPS_HISTORY_STORAGE_KEY, [])
-    const trimmedHistory = trimFpsHistory(storedHistory)
+
+    // FPS history moved server-side — scrub stale client-collected history keys.
+    Object.keys(localStorage)
+      .filter((key) => key === LEGACY_FPS_HISTORY_STORAGE_KEY || key.startsWith(`${STORAGE_KEYS.fpsHistory}:`))
+      .forEach((key) => localStorage.removeItem(key))
 
     setConfigState(shouldRestoreActiveSession ? storedConfig : null)
     const storedRefreshRate = clampRefreshRate(Number(localStorage.getItem(STORAGE_KEYS.refreshRate)) || REFRESH_RATE_DEFAULT_S) // seconds; stale minute-era values clamp to 60s
@@ -187,13 +184,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setPlayersState(normalizePlayersPayload(readStorageValue(STORAGE_KEYS.players, [])))
     setServerInfoState(readStorageValue<ServerInfo | null>(STORAGE_KEYS.serverInfo, null))
     setServerMetricsState(readStorageValue<ServerMetrics | null>(STORAGE_KEYS.serverMetrics, null))
-    setFpsHistoryState(trimmedHistory)
     setSettingsState(readStorageValue<Record<string, unknown> | null>(STORAGE_KEYS.settings, null))
     setBannedPlayersState(readStorageValue<BannedPlayer[]>(STORAGE_KEYS.bannedPlayers, []))
-
-    if (storedConfig) {
-      writeStorageValue(getFpsHistoryStorageKey(storedConfig), trimmedHistory)
-    }
 
     setIsHydrated(true)
   }, [])
@@ -208,7 +200,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setConfigState(normalizedConfig)
     setConnectionStatus('checking')
     setLastConnectionError(null)
-    setFpsHistoryState(trimFpsHistory(readStorageValue<FpsSample[]>(getFpsHistoryStorageKey(normalizedConfig), [])))
+    setFpsHistoryState([]) // repopulated from /api/fps-history on connect
 
     if (rememberMe) {
       writeStorageValue(STORAGE_KEYS.config, normalizedConfig)
@@ -280,16 +272,6 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setServerMetricsState(metrics)
     if (metrics) {
       writeStorageValue(STORAGE_KEYS.serverMetrics, metrics)
-      setFpsHistoryState((previousHistory) => {
-        const nextHistory = trimFpsHistory([
-          ...previousHistory,
-          {
-            timestamp: Date.now(),
-            fps: metrics.serverfps,
-          },
-        ])
-        return nextHistory
-      })
     } else {
       localStorage.removeItem(STORAGE_KEYS.serverMetrics)
     }
@@ -411,10 +393,37 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     }
   }, [config, addLog])
 
+  // Pulls the server-side 1h FPS ring (palworld-fps-sampler.service) via
+  // /api/fps-history — the panel displays it verbatim and never collects its
+  // own history. Admin tier only: the mod widget has no FPS graph.
+  const fetchFpsHistory = useCallback(async () => {
+    if (!config || config.accessTier !== 'admin') {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/fps-history', {
+        headers: buildPalworldProxyHeaders(config),
+        cache: 'no-store',
+      })
+
+      if (!response.ok) {
+        throw new Error(`fps-history responded with ${response.status}`)
+      }
+
+      const payload = (await response.json()) as { samples?: FpsSample[] }
+      setFpsHistoryState(trimFpsHistory(Array.isArray(payload.samples) ? payload.samples : []))
+    } catch (error) {
+      console.warn('Failed to fetch FPS history:', error)
+    }
+  }, [config])
+
   const fetchAllData = useCallback(async () => {
     if (!config) {
       return
     }
+
+    void fetchFpsHistory()
 
     // MOD tier never requests settings — the proxy allowlist would 403 it.
     // info and metrics are mod-allowlisted (widget header + player count).
@@ -450,7 +459,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     } else {
       console.warn('Failed to fetch settings:', settingsResult.reason)
     }
-  }, [config, apiCall, setServerInfo, setServerMetrics, setSettings])
+  }, [config, apiCall, fetchFpsHistory, setServerInfo, setServerMetrics, setSettings])
 
   const fetchMetrics = useCallback(async () => {
     if (!config) {
@@ -486,21 +495,14 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     const interval = window.setInterval(() => {
       scheduleNextMetricsFetch()
       void fetchMetrics()
+      void fetchFpsHistory()
     }, METRICS_POLL_INTERVAL_MS)
 
     return () => {
       window.clearInterval(interval)
       setNextMetricsFetchAt(null)
     }
-  }, [config, fetchMetrics, isHydrated])
-
-  useEffect(() => {
-    if (!config || !isHydrated) {
-      return
-    }
-
-    writeStorageValue(getFpsHistoryStorageKey(config), trimFpsHistory(fpsHistory))
-  }, [config, fpsHistory, isHydrated])
+  }, [config, fetchMetrics, fetchFpsHistory, isHydrated])
 
   const value = useMemo<ServerContextType>(() => ({
     config,

@@ -30,6 +30,10 @@ import {
 } from 'lucide-react'
 
 const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000 // owner 2026-07-13: 1h (was 4h) — keep in sync with lib/server-context.tsx
+// History comes from the server-side sampler (5s cadence). A hole >30s in the
+// ring means the server (or sampler) was actually down — render it as a GAP,
+// never a fake bridging line across time nobody sampled.
+const FPS_GAP_BREAK_MS = 30_000
 
 export function PanelSection({
   title,
@@ -649,9 +653,11 @@ function FpsHistoryGraph({
     [chartSamples]
   )
 
-  const pointString = React.useMemo(() => {
+  // Segments split on real data holes (server/sampler downtime) so the chart
+  // never draws an interpolated bridge across a gap in the ring.
+  const pointSegments = React.useMemo(() => {
     if (orderedSamples.length === 0) {
-      return ''
+      return []
     }
 
     const { width, height } = chartSize
@@ -660,16 +666,31 @@ function FpsHistoryGraph({
     // before the buffer fills, instead of stretching whatever data exists to full width.
     const yPadding = height * 0.06
 
-    return orderedSamples
-      .map((sample) => {
-        const x = ((sample.timestamp - cutoffTimestamp) / FPS_HISTORY_WINDOW_MS) * width
-        const normalizedY = (sample.fps - axisMin) / axisRange
-        const y = height - normalizedY * height
-        const clampedX = Math.min(Math.max(x, 0), width)
-        const clampedY = Math.min(Math.max(y, yPadding), height - yPadding)
-        return `${clampedX.toFixed(1)},${clampedY.toFixed(1)}`
-      })
-      .join(' ')
+    const toPoint = (sample: { timestamp: number; fps: number }) => {
+      const x = ((sample.timestamp - cutoffTimestamp) / FPS_HISTORY_WINDOW_MS) * width
+      const normalizedY = (sample.fps - axisMin) / axisRange
+      const y = height - normalizedY * height
+      return {
+        x: Math.min(Math.max(x, 0), width),
+        y: Math.min(Math.max(y, yPadding), height - yPadding),
+      }
+    }
+
+    const segments: Array<Array<{ x: number; y: number }>> = []
+    let current: Array<{ x: number; y: number }> = []
+    let previousTimestamp: number | null = null
+
+    for (const sample of orderedSamples) {
+      if (previousTimestamp != null && sample.timestamp - previousTimestamp > FPS_GAP_BREAK_MS) {
+        segments.push(current)
+        current = []
+      }
+      current.push(toPoint(sample))
+      previousTimestamp = sample.timestamp
+    }
+    segments.push(current)
+
+    return segments
   }, [axisMin, axisRange, chartSize, orderedSamples, cutoffTimestamp])
 
   return (
@@ -744,17 +765,31 @@ function FpsHistoryGraph({
                 />
               ))}
 
-              {pointString && (
-                <polyline
-                  fill="none"
-                  points={pointString}
-                  className="text-chart-2 graph-stroke-rounded"
-                  stroke="url(#fpsLineGradient)"
-                  strokeWidth="1"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
+              {pointSegments.map((segment, segmentIndex) =>
+                segment.length === 1 ? (
+                  // Lone sample after a gap — a one-point polyline is
+                  // invisible; render a dot so real data is never hidden.
+                  <circle
+                    key={`seg-${segmentIndex}`}
+                    cx={segment[0].x}
+                    cy={segment[0].y}
+                    r="1.5"
+                    className="text-chart-2"
+                    fill="currentColor"
+                  />
+                ) : (
+                  <polyline
+                    key={`seg-${segmentIndex}`}
+                    fill="none"
+                    points={segment.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
+                    className="text-chart-2 graph-stroke-rounded"
+                    stroke="url(#fpsLineGradient)"
+                    strokeWidth="1"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )
               )}
             </svg>
 
