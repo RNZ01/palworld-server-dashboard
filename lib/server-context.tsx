@@ -450,6 +450,20 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         setFpsHistoryState(trimFpsHistory(payload.fpsHistory.samples))
       }
 
+      // Console-feed heartbeat (owner 2026-07-14: the per-poll success lines are
+      // a feature, not spam). Compact expandable summary — never the full
+      // multi-KB history payload.
+      addLog({
+        type: 'success',
+        message: 'server-snapshot: Request successful',
+        endpoint: 'server-snapshot',
+        rawResponse: JSON.stringify({
+          serverfps: payload.metrics?.serverfps ?? null,
+          players: normalizePlayersPayload(payload.players).length,
+          historySamples: payload.fpsHistory?.samples?.length ?? 0,
+        }),
+      })
+
       setConnectionStatus('connected')
       setLastConnectionError(null)
     } catch (error) {
@@ -466,11 +480,17 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         setLastConnectionError(errorMessage)
       }
 
+      addLog({
+        type: 'error',
+        message: `server-snapshot: ${errorMessage}`,
+        endpoint: 'server-snapshot',
+      })
+
       console.warn('Failed to fetch server snapshot:', error)
     } finally {
       setIsLoading(prev => ({ ...prev, snapshot: false }))
     }
-  }, [config, setServerMetrics, setPlayers])
+  }, [config, addLog, setServerMetrics, setPlayers])
 
   const fetchAllData = useCallback(async () => {
     if (!config) {
