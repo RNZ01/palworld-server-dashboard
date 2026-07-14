@@ -6,7 +6,6 @@ import { useServer } from '@/lib/server-context'
 import {
   PALWORLD_PROXY_HEADERS,
   buildPalworldProxyHeaders,
-  buildPalworldProxyPath,
 } from '@/lib/palworld'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -194,7 +193,7 @@ export function ChatPanel() {
       const headers = new Headers(buildPalworldProxyHeaders(config))
       headers.set('Content-Type', 'application/json')
 
-      const response = await fetch(buildPalworldProxyPath('announce'), {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers,
         body: JSON.stringify({ message: `${CHAT_SENDER_PREFIX}${text}` }),
@@ -203,7 +202,7 @@ export function ChatPanel() {
       if (!response.ok) throw new Error('send failed')
 
       setInput('')
-      // Next poll surfaces the message; make sure we're pinned to see it.
+      // Next poll surfaces the echoed message; make sure we're pinned to see it.
       atBottomRef.current = true
     } catch {
       toast.error('Failed to send message')

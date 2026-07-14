@@ -629,6 +629,7 @@ interface FpsHealthInput {
   currentFps: number | null
   hourMedian: number | null
   recentMedian: number | null
+  lastMinuteMedian: number | null
   hourAvg: number | null
   under30Pct: number | null
   longestDipMs: number | null
@@ -680,8 +681,8 @@ function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
 
   // Veto caps: [description, cap, tripped]. The tightest tripped cap wins.
   const caps: Array<[string, number, boolean]> = [
-    ['live FPS < 10', 35, input.currentFps != null && input.currentFps < 10],
-    ['live FPS < 15', 40, input.currentFps != null && input.currentFps < 15],
+    ['1-min median < 10', 35, input.lastMinuteMedian != null && input.lastMinuteMedian < 10],
+    ['1-min median < 15', 40, input.lastMinuteMedian != null && input.lastMinuteMedian < 15],
     ['10-min median < 25', 25, recent < 25],
     ['10-min median < 30', 35, recent < 30],
     ['10-min median < 45', 65, recent < 45],
@@ -861,10 +862,19 @@ function FpsHistoryGraph({
     return recentFps.length >= 12 ? medianOf(recentFps) : null
   })()
 
+  const lastMinuteMedianFps = (() => {
+    const cutoff = now - 60_000
+    const lastMinuteFps = orderedSamples
+      .filter((sample) => sample.timestamp >= cutoff)
+      .map((sample) => sample.fps)
+    return lastMinuteFps.length >= 6 ? medianOf(lastMinuteFps) : null
+  })()
+
   const health = computeFpsHealth({
     currentFps,
     hourMedian: medianFps,
     recentMedian: recentMedianFps,
+    lastMinuteMedian: lastMinuteMedianFps,
     hourAvg: avgFps,
     under30Pct,
     longestDipMs,

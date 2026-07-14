@@ -435,6 +435,17 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         setFpsHistoryState(trimFpsHistory(payload.fpsHistory.samples))
       }
 
+      addLog({
+        type: 'success',
+        message: 'server-snapshot: Request successful',
+        endpoint: 'server-snapshot',
+        rawResponse: JSON.stringify({
+          serverfps: payload.metrics?.serverfps ?? null,
+          players: normalizePlayersPayload(payload.players).length,
+          historySamples: payload.fpsHistory?.samples?.length ?? 0,
+        }),
+      })
+
       setConnectionStatus('connected')
       setLastConnectionError(null)
     } catch (error) {
@@ -451,11 +462,17 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         setLastConnectionError(errorMessage)
       }
 
+      addLog({
+        type: 'error',
+        message: `server-snapshot: ${errorMessage}`,
+        endpoint: 'server-snapshot',
+      })
+
       console.warn('Failed to fetch server snapshot:', error)
     } finally {
       setIsLoading(prev => ({ ...prev, snapshot: false }))
     }
-  }, [config, setServerMetrics, setPlayers])
+  }, [config, addLog, setServerMetrics, setPlayers])
 
   const fetchAllData = useCallback(async () => {
     if (!config) {
