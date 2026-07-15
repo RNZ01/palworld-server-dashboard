@@ -20,6 +20,13 @@ Configuration (environment variables):
                            (default: /run/palworld-metrics/fps-history.json)
   FPS_SAMPLE_SECONDS       Poll cadence in seconds (default 5, clamped 1-60)
   FPS_WINDOW_MINUTES       History window in minutes (default 60, clamped 5-1440)
+  FPS_SANE_MAX             Discard samples above this fps as invalid (default 65).
+                           Palworld's engine frame limiter caps serverfps at 60,
+                           but /metrics briefly reports the free-running tick
+                           (1000+) while the world is still loading after a
+                           restart; one such sample blows out the histogram's
+                           auto-scaled axis. Raise only if you deliberately raise
+                           the server frame cap.
 
 Behavior notes:
   - Writes are atomic (tmp file + rename): the dashboard never reads a torn file.
@@ -59,6 +66,7 @@ TMP_FILE = os.path.join(os.path.dirname(OUT_FILE) or ".", f".{os.path.basename(O
 
 CADENCE_S = env_int("FPS_SAMPLE_SECONDS", 5, 1, 60)
 WINDOW_MS = env_int("FPS_WINDOW_MINUTES", 60, 5, 1440) * 60 * 1000
+FPS_SANE_MAX = env_int("FPS_SANE_MAX", 65, 1, 100000)
 MAX_SAMPLES = WINDOW_MS // (CADENCE_S * 1000) + 1
 HTTP_TIMEOUT_S = 4
 
@@ -143,7 +151,12 @@ def main() -> int:
             with urllib.request.urlopen(build_request(), timeout=HTTP_TIMEOUT_S) as resp:
                 metrics = json.load(resp)
             fps = metrics.get("serverfps")
-            if isinstance(fps, (int, float)):
+            if isinstance(fps, (int, float)) and fps > FPS_SANE_MAX:
+                # Never drop silently — log each discard so real anomalies can't hide.
+                log(f"DROP: serverfps={fps} > FPS_SANE_MAX={FPS_SANE_MAX} "
+                    "(boot-window artifact) — sample discarded")
+                new_state = "ok"
+            elif isinstance(fps, (int, float)):
                 samples.append({"timestamp": now_ms, "fps": fps})
                 samples = prune(samples, now_ms)
                 write_ring(samples, now_ms)
