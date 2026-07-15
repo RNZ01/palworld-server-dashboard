@@ -16,7 +16,7 @@ import { dirname } from 'node:path'
 import { isDemoPassword } from '@/lib/demo-mode'
 import type { AccessTier } from '@/lib/types'
 
-const AUTH_FILE = process.env.PANEL_AUTH_FILE ?? './data/panel-auth.json'
+const AUTH_FILE = process.env.PANEL_AUTH_FILE ?? (process.env.VERCEL ? '/tmp/panel-auth.json' : './data/panel-auth.json')
 const N = 16384
 const R = 8
 const P = 1

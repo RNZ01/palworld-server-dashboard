@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic'
 // journalctl and returns player messages, so mod/unknown are rejected like the proxy.
 // Requires Linux + systemd and the panel's OS user in the systemd-journal group.
 const SYSTEMD_UNIT = process.env.PALWORLD_SYSTEMD_UNIT ?? 'palworld'
+const DOCKER_CONTAINER = process.env.PALWORLD_DOCKER_CONTAINER
 const CHAT_RE = /^\[([^\]]+)\]\s+\[CHAT\]\s+(.*)$/
 const JOIN_RE = /^\[([^\]]+)\]\s+\[LOG\]\s+(.+?)\s+(?:[\d.:]+\s+)?(?:joined|connected) the server\./
 const LEAVE_RE = /^\[([^\]]+)\]\s+\[LOG\]\s+(.+?)\s+left the server\./
@@ -48,12 +49,14 @@ export async function GET(request: NextRequest) {
 
   let out = ''
   try {
-    const { stdout } = await run(
-      'journalctl',
-      ['-u', SYSTEMD_UNIT, '-o', 'cat', '--since', '-3h', '--no-pager'],
-      { maxBuffer: 8 * 1024 * 1024, timeout: 5000 },
-    )
-    out = stdout
+    const { stdout, stderr } = DOCKER_CONTAINER
+      ? await run('docker', ['logs', '--since', '3h', DOCKER_CONTAINER], { maxBuffer: 8 * 1024 * 1024, timeout: 5000 })
+      : await run(
+          'journalctl',
+          ['-u', SYSTEMD_UNIT, '-o', 'cat', '--since', '-3h', '--no-pager'],
+          { maxBuffer: 8 * 1024 * 1024, timeout: 5000 },
+        )
+    out = `${stdout}\n${stderr}`.replaceAll('\0', '')
   } catch {
     return NextResponse.json({ events: [] })
   }

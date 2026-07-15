@@ -1,0 +1,84 @@
+name: palworld-dashboard
+
+services:
+  dashboard:
+    image: ghcr.io/rnz01/palworld-server-dashboard:latest
+    container_name: palworld-dashboard
+    restart: unless-stopped
+    user: "0:0"
+    network_mode: host
+    environment:
+      NODE_ENV: production
+      PORT: ${PALWORLD_SERVER_DASHBOARD_PORT:-3000}
+      HOSTNAME: 0.0.0.0
+
+      PANEL_INITIAL_ADMIN_PASSWORD: ${PANEL_INITIAL_ADMIN_PASSWORD}
+      PANEL_INITIAL_MOD_PASSWORD: ${PANEL_INITIAL_MOD_PASSWORD:-}
+      PANEL_AUTH_FILE: /app/data/panel-auth.json
+
+      PALWORLD_REST_URL: ${PALWORLD_REST_URL}
+      PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD}
+      PALWORLD_FPS_HISTORY_FILE: /metrics/fps-history.json
+      PALWORLD_DOCKER_CONTAINER: ${PALWORLD_DOCKER_CONTAINER:-pro-palworld-1}
+
+      RATE_LIMIT_TRUST_PROXY: "false"
+      DEMO_MODE: "0"
+    volumes:
+      - dashboard-data:/app/data
+      - fps-metrics:/metrics:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+
+  fps-sampler:
+    image: python:3.12-alpine
+    container_name: palworld-fps-sampler
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PALWORLD_REST_URL: ${PALWORLD_REST_URL}
+      PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD}
+      FPS_HISTORY_FILE: /metrics/fps-history.json
+      FPS_SAMPLE_SECONDS: 5
+      FPS_WINDOW_MINUTES: 60
+    volumes:
+      - fps-metrics:/metrics
+    command:
+      - sh
+      - -c
+      - |
+        cat > /tmp/fps.py <<'PY'
+        import os, json, time, base64, urllib.request
+
+        url = os.environ["PALWORLD_REST_URL"].rstrip("/") + "/v1/api/metrics"
+        out = os.environ.get("FPS_HISTORY_FILE", "/metrics/fps-history.json")
+        interval = int(os.environ.get("FPS_SAMPLE_SECONDS", "5"))
+        window = int(os.environ.get("FPS_WINDOW_MINUTES", "60")) * 60
+        auth = base64.b64encode(("admin:" + os.environ["PALWORLD_ADMIN_PASSWORD"]).encode()).decode()
+
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+
+        while True:
+          try:
+            req = urllib.request.Request(url, headers={"Authorization": "Basic " + auth})
+            data = json.load(urllib.request.urlopen(req, timeout=5))
+            now = int(time.time() * 1000)
+            try:
+              ring = json.load(open(out))
+            except Exception:
+              ring = {"samples": []}
+            ring["samples"] = [s for s in ring.get("samples", []) if now - s.get("timestamp", 0) <= window * 1000]
+            ring["samples"].append({
+              "timestamp": now,
+              "fps": data.get("serverfps"),
+            })
+            ring["updatedAt"] = now
+            open(out, "w").write(json.dumps(ring))
+          except Exception as e:
+            print("fps sampler error:", e, flush=True)
+          time.sleep(interval)
+        PY
+        python /tmp/fps.py
+
+volumes:
+  dashboard-data:
+  fps-metrics:
