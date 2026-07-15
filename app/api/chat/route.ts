@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
   }
 
   const events: ChatEvent[] = []
-  for (const line of out.split('\n')) {
+  for (const rawLine of out.split('\n')) {
+    const line = rawLine.trim()
     let m = CHAT_RE.exec(line)
     if (m) {
       const rest = m[2]!.trim()
