@@ -4,32 +4,69 @@ title: Live Chat
 
 # Live Chat
 
-The dashboard can show recent chat and join/leave events when the Palworld server logs are available through systemd journal.
+The dashboard can show recent chat and join/leave events when it can reach the
+Palworld server's stdout log.
 
 ## How chat reading works
 
-Palworld REST does not provide a chat-read endpoint. The dashboard reads recent lines from:
+Palworld REST does not provide a chat-read endpoint, so the dashboard parses the
+`[CHAT]` and join/leave lines out of the server's stdout log. It reads that log
+from one of three sources, in order of precedence:
+
+### 1. Log file (`PALWORLD_CHAT_LOG_FILE`)
+
+Reads player chat from a plain log file. No systemd and no Docker socket are
+required, so this is the option for **Kubernetes / containerd (Talos)** and
+**Podman**, where the other two do not work.
+
+```env
+PALWORLD_CHAT_LOG_FILE=/gamelog/palworld.log
+```
+
+How the game server's stdout gets into that file is a deployment choice — a
+relay sidecar streaming pod logs, a read-only mount of the container runtime's
+log directory, `docker logs -f >> file`, or a shared volume the game writes.
+This mirrors how the FPS sampler feeds its ring file.
+
+Two conveniences make it work directly against container logs:
+
+- **Globs** — the value may contain `*`/`?`; the newest matching file wins. This
+  matches a Kubernetes/CRI path whose pod UID and restart count change over time,
+  for example `/var/log/pods/games_palworld-*/app/*.log`.
+- **CRI prefix stripping** — Kubernetes/CRI log lines are prefixed with
+  `<timestamp> stdout F `; that prefix is detected and removed automatically, so
+  the file may be a raw container log with no pre-processing.
+
+### 2. Docker logs (`PALWORLD_DOCKER_CONTAINER`)
+
+If `PALWORLD_CHAT_LOG_FILE` is unset and this is set, the dashboard runs
+`docker logs <container>`. Requires the Docker socket (and CLI) available to the
+dashboard container.
+
+```env
+PALWORLD_DOCKER_CONTAINER=palworld
+```
+
+### 3. systemd journal (default)
+
+With neither of the above set, the dashboard reads the systemd journal:
 
 ```bash
 journalctl -u PALWORLD_SYSTEMD_UNIT -o cat --since -3h --no-pager
 ```
 
-Default unit:
-
 ```env
 PALWORLD_SYSTEMD_UNIT=palworld
 ```
 
-## Requirements
-
-- Linux host with systemd.
-- Palworld server logs written to journald.
-- Dashboard process user allowed to read the journal.
-- Usually membership in the `systemd-journal` group.
+Requires a Linux host with systemd, the Palworld logs written to journald, and
+the dashboard process user allowed to read the journal (usually membership in
+the `systemd-journal` group).
 
 ## Behavior when unavailable
 
-If journal access fails, the endpoint returns an empty event list. The rest of the dashboard continues to work.
+If the configured source cannot be read, the endpoint returns an empty event
+list. The rest of the dashboard continues to work.
 
 ## Sending announcements
 

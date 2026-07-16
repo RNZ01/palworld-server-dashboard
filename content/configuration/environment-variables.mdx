@@ -21,7 +21,9 @@ title: Environment Variables
 | `PALWORLD_REAL_ADMIN_PASSWORD` | empty | Alias for `PALWORLD_ADMIN_PASSWORD`. |
 | `PALWORLD_SERVER_DASHBOARD_PORT` | `3000` | Host port used by Docker Compose. |
 | `RATE_LIMIT_TRUST_PROXY` | `false` | Trust `x-real-ip` / `x-forwarded-for` from a controlled reverse proxy. |
-| `PALWORLD_SYSTEMD_UNIT` | `palworld` | systemd unit read by the chat endpoint. |
+| `PALWORLD_CHAT_LOG_FILE` | empty | Log file (or glob) the chat endpoint reads for player chat. Takes precedence over the Docker/journald sources. No systemd or Docker socket needed — for Kubernetes/containerd, Podman, etc. Globs resolve to the newest match; a Kubernetes/CRI line prefix is auto-stripped. |
+| `PALWORLD_DOCKER_CONTAINER` | empty | If set (and `PALWORLD_CHAT_LOG_FILE` is not), the chat endpoint reads `docker logs <container>` instead of journald. Requires the Docker socket. |
+| `PALWORLD_SYSTEMD_UNIT` | `palworld` | systemd unit read by the chat endpoint when no file/Docker source is set. |
 | `NEXT_PUBLIC_CHAT_SENDER_PREFIX` | `[Admin] ` | Prefix for announcements sent from the dashboard chat console. |
 | `NEXT_PUBLIC_SNAPSHOT_POLL_SECONDS` | `15` | Dashboard snapshot polling interval. Clamped from 5 to 120 seconds. |
 | `DEMO_MODE` | `0` | Set to `1` to enable built-in demo data. |

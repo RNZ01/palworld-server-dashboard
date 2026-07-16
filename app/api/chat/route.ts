@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { classifyPassword } from '@/lib/access-tier'
 import { getAnnounceEchoes, recordAnnounceEcho } from '@/lib/announce-echo'
+import { CHAT_LOG_FILE, readChatLog } from '@/lib/chat-source'
 import { DEMO_MODE } from '@/lib/demo-mode'
 import { clientIp, isLockedOut, recordFailure } from '@/lib/rate-limit'
 import { PALWORLD_PROXY_HEADERS } from '@/lib/palworld'
@@ -12,10 +13,15 @@ const run = promisify(execFile)
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Live game chat + presence, parsed from the server's systemd journal
-// (Palworld's REST API has no chat-read endpoint). ADMIN-tier only: this execs
-// journalctl and returns player messages, so mod/unknown are rejected like the proxy.
-// Requires Linux + systemd and the panel's OS user in the systemd-journal group.
+// Live game chat + presence, parsed from the server's stdout log (Palworld's
+// REST API has no chat-read endpoint). ADMIN-tier only — this returns player
+// messages, so mod/unknown are rejected like the proxy. The log is read from one
+// of three sources, in order of precedence:
+//   1. PALWORLD_CHAT_LOG_FILE — a plain log file (or glob). No systemd/Docker
+//      required; for Kubernetes/containerd (Talos), Podman, etc. See lib/chat-source.
+//   2. PALWORLD_DOCKER_CONTAINER — `docker logs` (needs the Docker socket).
+//   3. journalctl -u PALWORLD_SYSTEMD_UNIT — the default (needs Linux + systemd
+//      and the panel's OS user in the systemd-journal group).
 const SYSTEMD_UNIT = process.env.PALWORLD_SYSTEMD_UNIT ?? 'palworld'
 const DOCKER_CONTAINER = process.env.PALWORLD_DOCKER_CONTAINER
 const CHAT_RE = /^\[([^\]]+)\]\s+\[CHAT\]\s+(.*)$/
@@ -49,14 +55,19 @@ export async function GET(request: NextRequest) {
 
   let out = ''
   try {
-    const { stdout, stderr } = DOCKER_CONTAINER
-      ? await run('docker', ['logs', '--since', '3h', DOCKER_CONTAINER], { maxBuffer: 8 * 1024 * 1024, timeout: 5000 })
-      : await run(
-          'journalctl',
-          ['-u', SYSTEMD_UNIT, '-o', 'cat', '--since', '-3h', '--no-pager'],
-          { maxBuffer: 8 * 1024 * 1024, timeout: 5000 },
-        )
-    out = `${stdout}\n${stderr}`.replaceAll('\0', '')
+    if (CHAT_LOG_FILE) {
+      // readChatLog already NUL-scrubs and strips any CRI prefix.
+      out = await readChatLog()
+    } else {
+      const { stdout, stderr } = DOCKER_CONTAINER
+        ? await run('docker', ['logs', '--since', '3h', DOCKER_CONTAINER], { maxBuffer: 8 * 1024 * 1024, timeout: 5000 })
+        : await run(
+            'journalctl',
+            ['-u', SYSTEMD_UNIT, '-o', 'cat', '--since', '-3h', '--no-pager'],
+            { maxBuffer: 8 * 1024 * 1024, timeout: 5000 },
+          )
+      out = `${stdout}\n${stderr}`.replaceAll('\0', '')
+    }
   } catch {
     return NextResponse.json({ events: [] })
   }
