@@ -25,7 +25,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           ...toastOptions?.classNames,
           toast: cn(
-            "group relative min-w-[280px] max-w-sm overflow-hidden rounded border bg-card/95 px-4 py-3 text-foreground shadow-[0_0_20px_rgba(var(--primary-rgb,0,180,255),0.06)] backdrop-blur-md",
+            "group relative min-w-[280px] max-w-sm overflow-hidden rounded border bg-card/95 px-4 py-3 text-foreground shadow-[0_0_20px] shadow-primary/10 backdrop-blur-md",
             "before:pointer-events-none before:absolute before:inset-0 before:content-[''] before:bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.02)_2px,rgba(0,0,0,0.02)_4px)]",
             "after:pointer-events-none after:absolute after:left-0 after:top-0 after:h-1.5 after:w-1.5 after:border-l after:border-t after:border-primary/30",
             toastOptions?.classNames?.toast

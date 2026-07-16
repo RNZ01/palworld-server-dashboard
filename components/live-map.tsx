@@ -22,14 +22,13 @@ import points from '@/lib/map-points.json'
 type MapBounds = readonly [number, number, number, number]
 const WORLD_LANDSCAPE: MapBounds = [349400, 724400, -1099400, -724400] // DT-exact: MainMap
 const TREE_LANDSCAPE: MapBounds = [689148.5, -476400.0, 347351.5, -818197.0] // DT-exact: World Tree sub-map
-const MAP_IMAGE_AVIF = '/palworld-map/full-map-native-8192.avif' // world — primary, best quality (q85 grid)
-const MAP_IMAGE_URL = '/palworld-map/full-map-native-8192.webp' // world — fallback (q92) for Firefox, which can't render grid AVIF
-const MAP_IMAGE_TREE_AVIF = '/palworld-map/full-map-tree-8192.avif' // tree — primary AVIF
-const MAP_IMAGE_TREE_URL = '/palworld-map/full-map-tree-8192.webp' // tree — WebP fallback
+const MAP_IMAGE_URL = '/palworld-map/full-map-native-8192.webp' // world
+const MAP_IMAGE_FALLBACK_URL = '/palworld-map/full-map-z4.png' // Firefox-safe fallback
+const MAP_IMAGE_TREE_URL = '/palworld-map/full-map-tree-8192.webp' // tree
 const MIN_ZOOM = 0
 const MAX_ZOOM = 10
 const MAP_SIZE_FALLBACK = 920
-const MAP_BASIS = 8192 // native image layout: GPU layer caches full-res once; zoom = pure scale (owner spec 2026-07-10)
+const MAP_BASIS = 4096 // keep the transformed layer under common GPU texture limits; 8192+ zoom corrupts Chrome compositing
 const REFRESH_INTERVAL_MS = 5000 // owner 2026-07-13: sane default (1s rescinded — REST /players is game-thread-synchronized on PalServer, ~1.2pp tick cost per req/s, A/B-measured)
 
 interface PlayerMarkerGroup {
@@ -137,8 +136,10 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
   // Active projection bounds + image swap follow the mode. World bounds === the pre-existing
   // LANDSCAPE, so world mode is byte-for-byte the old behavior.
   const activeBounds = mapMode === 'tree' ? TREE_LANDSCAPE : WORLD_LANDSCAPE
-  const mapImageAvif = mapMode === 'tree' ? MAP_IMAGE_TREE_AVIF : MAP_IMAGE_AVIF
   const mapImageUrl = mapMode === 'tree' ? MAP_IMAGE_TREE_URL : MAP_IMAGE_URL
+  const mapImageFallbackUrl = mapMode === 'world' ? MAP_IMAGE_FALLBACK_URL : null
+  const [useMapImageFallback, setUseMapImageFallback] = useState(false)
+  const mapImageSrc = useMapImageFallback && mapImageFallbackUrl ? mapImageFallbackUrl : mapImageUrl
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshCountdownMs, setRefreshCountdownMs] = useState(REFRESH_INTERVAL_MS)
   const [mapImageLoaded, setMapImageLoaded] = useState(false)
@@ -239,6 +240,9 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
   // above (clear any in-flight gesture first so the imperative path doesn't fight the reset).
   const switchMapMode = useCallback((mode: 'world' | 'tree') => {
     if (mode === mapMode) return
+    setMapImageLoaded(false)
+    setMapImageError(false)
+    setUseMapImageFallback(false)
     setMapModeRaw(mode)
     if (typeof window !== 'undefined') localStorage.setItem('mapMode', mode)
     pendingViewRef.current = null
@@ -424,7 +428,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
     setMousePosition((cur) => (cur[0] === next[0] && cur[1] === next[1] ? cur : next))
   }, [activeBounds])
 
-  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault()
     const rect = mapViewportRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -437,6 +441,14 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
     // anchor the point under the cursor: it must map to the same viewport position after scaling
     commitView(clampView({ scale: nextScale, tx: cx - (cx - base.tx) * k, ty: cy - (cy - base.ty) * k }, rect.width, rect.height))
   }, [clampView, commitView, view])
+
+  useEffect(() => {
+    const element = mapViewportRef.current
+    if (!element) return
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  }, [handleWheel])
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -647,7 +659,6 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
         style={{ overscrollBehavior: 'contain' }}
         onMouseMove={handleMapMouseMove}
         onMouseDown={handleMouseDown}
-        onWheel={handleWheel}
       >
         <div
           ref={mapPlaneRef}
@@ -659,23 +670,24 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             transformOrigin: '0 0',
           }}
         >
-          <picture>
-            <source srcSet={mapImageAvif} type="image/avif" />
-            <img
-              src={mapImageUrl}
-              alt={mapMode === 'tree' ? 'Palworld World Tree map' : 'Palworld world map'}
-              className="block h-full w-full select-none object-cover"
-              draggable={false}
-              onLoad={() => {
-                setMapImageLoaded(true)
-                setMapImageError(false)
-              }}
-              onError={() => {
-                setMapImageLoaded(false)
-                setMapImageError(true)
-              }}
-            />
-          </picture>
+          <img
+            src={mapImageSrc}
+            alt={mapMode === 'tree' ? 'Palworld World Tree map' : 'Palworld world map'}
+            className="block h-full w-full select-none object-cover"
+            draggable={false}
+            onLoad={() => {
+              setMapImageLoaded(true)
+              setMapImageError(false)
+            }}
+            onError={() => {
+              setMapImageLoaded(false)
+              if (mapImageFallbackUrl && !useMapImageFallback) {
+                setUseMapImageFallback(true)
+                return
+              }
+              setMapImageError(true)
+            }}
+          />
 
           <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-full border border-primary/45 bg-primary/15 px-3 py-1 text-xs font-semibold tracking-[0.2em] text-primary">
             MAP V4
@@ -795,7 +807,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             <div className="max-w-md rounded-2xl border border-destructive/35 bg-card/90 p-5 text-center text-foreground shadow-2xl">
               <div className="text-lg font-semibold">Map image failed to load</div>
               <p className="mt-2 text-sm text-muted-foreground">
-                The app could not load <code className="font-mono text-destructive">{mapImageUrl}</code>.
+                The app could not load <code className="font-mono text-destructive">{mapImageSrc}</code>.
               </p>
             </div>
           </div>

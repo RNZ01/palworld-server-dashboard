@@ -24,7 +24,7 @@ export const TextInput = React.forwardRef<HTMLInputElement, TextInputProps>(
         data-slot="input"
         className={cn(
           "w-full border bg-card/60 font-mono text-foreground/80 outline-none backdrop-blur-sm transition-all placeholder:text-foreground/20",
-          "focus:border-primary/40 focus:shadow-[0_0_8px_rgba(var(--primary-rgb,0,180,255),0.1)]",
+          "focus:border-primary/40 focus:shadow-[0_0_8px] focus:shadow-primary/10",
           error ? "border-red-500/40" : "border-primary/20",
           icon ? "pl-9" : "pl-3",
           size === "sm" && "py-1.5 pr-3 text-[10px]",

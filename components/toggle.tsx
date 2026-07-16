@@ -54,7 +54,7 @@ export function Toggle({
           s.track,
           disabled && "cursor-not-allowed opacity-40",
           isChecked
-            ? "border-primary/40 bg-primary/20 shadow-[0_0_10px_rgba(var(--primary-rgb,0,180,255),0.2)]"
+            ? "border-primary/40 bg-primary/20 shadow-[0_0_10px] shadow-primary/20"
             : "border-primary/15 bg-card/60"
         )}
         {...props}
@@ -70,7 +70,7 @@ export function Toggle({
             "relative inline-block rounded-full border transition-all duration-200",
             s.thumb,
             isChecked
-              ? cn(s.translate, "ml-0.5 border-primary bg-primary shadow-[0_0_6px_rgba(var(--primary-rgb,0,180,255),0.5)]")
+              ? cn(s.translate, "ml-0.5 border-primary bg-primary shadow-[0_0_6px] shadow-primary/50")
               : "ml-0.5 border-foreground/20 bg-foreground/30"
           )}
         />

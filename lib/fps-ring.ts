@@ -37,7 +37,7 @@ function sanitizeSamples(raw: unknown, now: number): FpsSample[] {
 
 export async function readFpsRing(): Promise<FpsRingPayload> {
   try {
-    const raw = await readFile(HISTORY_FILE, 'utf8')
+    const raw = await readFile(/* turbopackIgnore: true */ HISTORY_FILE, 'utf8')
     const parsed = JSON.parse(raw) as { updatedAt?: unknown; samples?: unknown }
     const now = Date.now()
 
