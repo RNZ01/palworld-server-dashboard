@@ -11,6 +11,8 @@ import { demoConfig } from '@/lib/demo'
 import { LOGIN_TRANSITION_SESSION_KEY } from '@/lib/session-keys'
 import { InfoPanel, StatusBar } from '@/components/status-bar'
 import { Terminal } from '@/components/terminal'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { KeyIcon, Loader2Icon, CheckCircle2Icon, XCircleIcon } from 'lucide-react'
 import type { AccessTier, ServerConfig } from '@/lib/types'
 
@@ -27,6 +29,7 @@ const PINNED_REST_API_PORT = '8212'
 const PINNED_GAME_PORT = '8211'
 
 type ValidationState = 'idle' | 'checking' | 'valid' | 'invalid'
+type TranslateFn = (path: string, params?: Record<string, string | number>) => string
 
 interface LoginConfigPayload {
   serverIp: string
@@ -34,23 +37,25 @@ interface LoginConfigPayload {
   adminPassword: string
 }
 
-function toFriendlyValidationMessage(rawMessage: string) {
+// Maps a raw error string (from fetch or the REST proxy) to a friendly,
+// localized message. `t` is passed in because this runs outside the component.
+function toFriendlyValidationMessage(rawMessage: string, t: TranslateFn) {
   const message = rawMessage.trim()
 
   if (!message) {
-    return 'Could not verify your password. Make sure the server is online and try again.'
+    return t('login.errCouldNotVerify')
   }
 
   if (/401|unauthorized|forbidden/i.test(message)) {
-    return 'Authentication failed. Check your password and try again.'
+    return t('login.errAuthFailed')
   }
 
   if (/fetch failed|failed to fetch|econnrefused|refused/i.test(message)) {
-    return 'Cannot reach the server right now. It may be offline — try again shortly.'
+    return t('login.errUnreachable')
   }
 
   if (/etimedout|timed out|timeout/i.test(message)) {
-    return 'The connection timed out. The server may be busy or offline; try again.'
+    return t('login.errTimeout')
   }
 
   return message
@@ -65,7 +70,7 @@ async function getApiErrorMessage(response: Response, fallbackMessage: string) {
   }
 }
 
-async function validateServerConnection(config: LoginConfigPayload, signal?: AbortSignal) {
+async function validateServerConnection(config: LoginConfigPayload, t: TranslateFn, signal?: AbortSignal) {
   const requestController = new AbortController()
   const timeoutId = window.setTimeout(() => {
     requestController.abort()
@@ -97,7 +102,7 @@ async function validateServerConnection(config: LoginConfigPayload, signal?: Abo
     })
   } catch (error) {
     if (requestController.signal.aborted && !signal?.aborted) {
-      throw new Error(`Validation timed out after ${VALIDATION_REQUEST_TIMEOUT_MS / 1000} seconds.`)
+      throw new Error(t('login.errValidationTimeout', { seconds: VALIDATION_REQUEST_TIMEOUT_MS / 1000 }))
     }
 
     throw error
@@ -107,7 +112,7 @@ async function validateServerConnection(config: LoginConfigPayload, signal?: Abo
   }
 
   if (!infoResponse.ok) {
-    throw new Error(await getApiErrorMessage(infoResponse, 'Failed to connect to server'))
+    throw new Error(await getApiErrorMessage(infoResponse, t('login.errFailedConnect')))
   }
 }
 
@@ -134,6 +139,7 @@ async function fetchAccessTier(password: string): Promise<AccessTier | 'invalid'
 }
 
 export function LoginForm() {
+  const { t } = useTranslation()
   const { setConfig } = useServer()
   const [adminPassword, setAdminPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
@@ -162,16 +168,16 @@ export function LoginForm() {
     const nextLine =
       validationState === 'checking'
         ? {
-            text: 'LIVE VALIDATION: CHECKING PASSWORD',
+            text: t('login.boot.checking'),
             type: 'system' as const,
           }
         : validationState === 'valid'
           ? {
-              text: 'LIVE VALIDATION: PASS. CREDENTIALS VERIFIED.',
+              text: t('login.boot.verified'),
               type: 'success' as const,
             }
           : {
-              text: `LIVE VALIDATION: FAILED. ${validationMessage.toUpperCase()}`,
+              text: t('login.boot.failed', { msg: validationMessage.toUpperCase() }),
               type: 'error' as const,
             }
 
@@ -192,18 +198,18 @@ export function LoginForm() {
 
       return next.slice(-8)
     })
-  }, [validationMessage, validationState])
+  }, [validationMessage, validationState, t])
 
   const bootSequenceLines = useMemo(
     () => [
-      { text: 'INITIALIZING ADMIN INTERFACE', type: 'system' as const },
-      { text: 'LOADING SERVER LINK PROTOCOLS', type: 'output' as const },
-      { text: 'VERIFY PALWORLD REST ENDPOINT', type: 'output' as const },
-      { text: 'LIVE VALIDATION MONITOR ARMED', type: 'system' as const },
-      { text: 'AWAITING OPERATOR PASSWORD', type: 'input' as const },
+      { text: t('login.boot.init'), type: 'system' as const },
+      { text: t('login.boot.loadProtocols'), type: 'output' as const },
+      { text: t('login.boot.verifyEndpoint'), type: 'output' as const },
+      { text: t('login.boot.monitorArmed'), type: 'system' as const },
+      { text: t('login.boot.awaitingPassword'), type: 'input' as const },
       ...bootValidationLines,
     ],
-    [bootValidationLines]
+    [bootValidationLines, t]
   )
 
   useEffect(() => {
@@ -247,9 +253,9 @@ export function LoginForm() {
       setValidationMessage('')
     } else {
       setValidationState('idle')
-      setValidationMessage('Press connect to authenticate.')
+      setValidationMessage(t('login.pressConnect'))
     }
-  }, [adminPassword])
+  }, [adminPassword, t])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -273,13 +279,13 @@ export function LoginForm() {
     }
 
     if (!normalizedConfig.adminPassword) {
-      setError('Password is required')
+      setError(t('login.errPasswordRequired'))
       setIsConnecting(false)
       return
     }
 
     try {
-      await validateServerConnection(normalizedConfig)
+      await validateServerConnection(normalizedConfig, t)
 
       // validateServerConnection succeeded, so the password is live. Resolve
       // which tier it authenticated as; 'invalid' at this point means a
@@ -291,8 +297,8 @@ export function LoginForm() {
       sessionStorage.setItem(LOGIN_TRANSITION_SESSION_KEY, '1')
       setConfig({ ...normalizedConfig, accessTier }, { rememberMe })
     } catch (err) {
-      const rawMessage = err instanceof Error ? err.message : 'Unknown error'
-      const message = toFriendlyValidationMessage(rawMessage)
+      const rawMessage = err instanceof Error ? err.message : t('login.errUnknown')
+      const message = toFriendlyValidationMessage(rawMessage, t)
       setError(message)
     } finally {
       setIsConnecting(false)
@@ -300,21 +306,24 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="relative min-h-screen p-4 sm:p-6">
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <LanguageSwitcher />
+      </div>
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col justify-center gap-4">
         <StatusBar
           variant="info"
           leftContent={
             <>
-              <span>PALWORLD CONTROL GRID</span>
-              <span>AUTHENTICATION REQUIRED</span>
+              <span>{t('login.controlGrid')}</span>
+              <span>{t('login.authRequired')}</span>
             </>
           }
         />
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <Terminal
-            title="BOOT SEQUENCE"
+            title={t('login.bootTitle')}
             lines={bootSequenceLines}
             typewriter={false}
             fillHeight
@@ -323,8 +332,8 @@ export function LoginForm() {
           />
 
           <InfoPanel
-            title="Palworld Server Admin"
-            subtitle="REST Link Authentication"
+            title={t('login.adminTitle')}
+            subtitle={t('login.adminSubtitle')}
             status="active"
             className="w-full border-border/60 bg-card/80"
           >
@@ -332,12 +341,12 @@ export function LoginForm() {
               <div className="login-avatar-shell mx-auto">
                 <div className="login-avatar-ring avatar-circle" />
                 <div className="login-avatar-core avatar-circle overflow-hidden rounded-xl border border-primary/20 bg-primary/10">
-                  <img src="/login-mascot.jpg" alt="Pal mascot" className="login-avatar-image h-full w-full object-cover" />
+                  <img src="/login-mascot.jpg" alt={t('login.mascotAlt')} className="login-avatar-image h-full w-full object-cover" />
                 </div>
                 <div className="login-avatar-spark" />
               </div>
               <p className="mt-4 max-w-md text-sm text-muted-foreground">
-                {isDemoMode ? 'Demo mode is enabled. Launch the sample dashboard without a server password.' : 'Enter your operator password to bring the control grid online.'}
+                {isDemoMode ? t('login.demoIntro') : t('login.intro')}
               </p>
             </div>
 
@@ -345,7 +354,7 @@ export function LoginForm() {
               <form onSubmit={handleSubmit} className="space-y-6" autoComplete="on" data-1p-ignore="false">
                 <FieldGroup>
                   <Field>
-                    <FieldLabel htmlFor="adminPassword">Password</FieldLabel>
+                    <FieldLabel htmlFor="adminPassword">{t('login.passwordLabel')}</FieldLabel>
                     <div className="relative">
                       <KeyIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
                       <Input
@@ -353,7 +362,7 @@ export function LoginForm() {
                         name="adminPassword"
                         type="password"
                         autoComplete="current-password"
-                        placeholder={isDemoMode ? 'Not required in demo mode' : 'Enter your password'}
+                        placeholder={isDemoMode ? t('login.passwordPlaceholderDemo') : t('login.passwordPlaceholder')}
                         value={adminPassword}
                         onChange={(e) => setAdminPassword(e.target.value)}
                         required={!isDemoMode}
@@ -372,8 +381,8 @@ export function LoginForm() {
 
                 <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
                   <div>
-                    <label htmlFor="rememberMe" className="text-sm font-medium text-foreground">Remember me</label>
-                    <p className="text-xs text-muted-foreground">Save your password on this device.</p>
+                    <label htmlFor="rememberMe" className="text-sm font-medium text-foreground">{t('login.rememberMe')}</label>
+                    <p className="text-xs text-muted-foreground">{t('login.rememberMeHint')}</p>
                   </div>
                   <Switch
                     id="rememberMe"
@@ -383,7 +392,7 @@ export function LoginForm() {
                     data-lpignore="true"
                     checked={rememberMe}
                     onCheckedChange={setRememberMe}
-                    aria-label="Remember login data"
+                    aria-label={t('login.rememberAria')}
                   />
                 </div>
 
@@ -408,7 +417,7 @@ export function LoginForm() {
                       <XCircleIcon className="h-3.5 w-3.5 shrink-0" />
                     )}
                     <span className="line-clamp-2 flex-1 text-center leading-relaxed">
-                      {validationState === 'idle' ? 'VALIDATION STATUS PLACEHOLDER' : validationMessage}
+                      {validationState === 'idle' ? t('login.validationPlaceholder') : validationMessage}
                     </span>
                   </div>
                 </div>
@@ -423,12 +432,12 @@ export function LoginForm() {
                   {isConnecting ? (
                     <>
                       <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                      Connecting...
+                      {t('login.connecting')}
                     </>
                   ) : isDemoMode ? (
-                    'Launch Demo'
+                    t('login.launchDemo')
                   ) : (
-                    'Connect to Server'
+                    t('login.connectButton')
                   )}
                 </Button>
               </form>

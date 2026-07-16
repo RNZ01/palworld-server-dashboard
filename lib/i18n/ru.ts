@@ -1,0 +1,82 @@
+// Russian message catalog. Typed against `Messages`, so it must mirror every
+// key in en.ts (a missing key is a compile error). Interpolation placeholders
+// like `{msg}` must be preserved verbatim.
+
+import type { Messages } from './en'
+
+export const ru: Messages = {
+  common: {
+    appName: 'Панель сервера Palworld',
+    language: 'Язык',
+    cancel: 'Отмена',
+    save: 'Сохранить',
+    close: 'Закрыть',
+    confirm: 'Подтвердить',
+    loading: 'Загрузка…',
+  },
+  login: {
+    controlGrid: 'СЕТЬ УПРАВЛЕНИЯ PALWORLD',
+    authRequired: 'ТРЕБУЕТСЯ АВТОРИЗАЦИЯ',
+    bootTitle: 'ПОСЛЕДОВАТЕЛЬНОСТЬ ЗАГРУЗКИ',
+    boot: {
+      init: 'ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА АДМИНИСТРАТОРА',
+      loadProtocols: 'ЗАГРУЗКА ПРОТОКОЛОВ СВЯЗИ С СЕРВЕРОМ',
+      verifyEndpoint: 'ПРОВЕРКА REST-ЭНДПОИНТА PALWORLD',
+      monitorArmed: 'МОНИТОР ЖИВОЙ ПРОВЕРКИ АКТИВЕН',
+      awaitingPassword: 'ОЖИДАНИЕ ПАРОЛЯ ОПЕРАТОРА',
+      checking: 'ЖИВАЯ ПРОВЕРКА: ПРОВЕРЯЮ ПАРОЛЬ',
+      verified: 'ЖИВАЯ ПРОВЕРКА: УСПЕХ. ДОСТУП ПОДТВЕРЖДЁН.',
+      failed: 'ЖИВАЯ ПРОВЕРКА: ОШИБКА. {msg}',
+    },
+    adminTitle: 'Администрирование сервера Palworld',
+    adminSubtitle: 'Аутентификация по REST',
+    demoIntro: 'Включён демо-режим. Запустите демонстрационную панель без пароля сервера.',
+    intro: 'Введите пароль оператора, чтобы вывести панель управления в онлайн.',
+    passwordLabel: 'Пароль',
+    passwordPlaceholder: 'Введите пароль',
+    passwordPlaceholderDemo: 'Не требуется в демо-режиме',
+    rememberMe: 'Запомнить меня',
+    rememberMeHint: 'Сохранить пароль на этом устройстве.',
+    rememberAria: 'Запомнить данные входа',
+    validationPlaceholder: 'СТАТУС ПРОВЕРКИ',
+    pressConnect: 'Нажмите «Подключиться» для авторизации.',
+    connecting: 'Подключение…',
+    launchDemo: 'Запустить демо',
+    connectButton: 'Подключиться к серверу',
+    mascotAlt: 'Маскот Pal',
+    errPasswordRequired: 'Требуется пароль',
+    errCouldNotVerify: 'Не удалось проверить пароль. Убедитесь, что сервер онлайн, и повторите попытку.',
+    errAuthFailed: 'Ошибка аутентификации. Проверьте пароль и повторите попытку.',
+    errUnreachable: 'Сейчас не удаётся связаться с сервером. Возможно, он офлайн — попробуйте чуть позже.',
+    errTimeout: 'Истекло время ожидания соединения. Сервер может быть занят или офлайн; попробуйте снова.',
+    errFailedConnect: 'Не удалось подключиться к серверу',
+    errValidationTimeout: 'Время проверки истекло через {seconds} с.',
+    errUnknown: 'Неизвестная ошибка',
+  },
+  header: {
+    serverFallback: 'Сервер Palworld',
+    status: {
+      connected: 'подключено',
+      checking: 'проверка',
+      disconnected: 'отключено',
+    },
+    awaitingLink: 'Ожидание связи с сервером',
+    addressTitle: 'Игра {game} · REST {rest}',
+    tabDashboard: 'Панель',
+    tabMap: 'Карта',
+    docs: 'Доки',
+    settingsAria: 'Настройки панели',
+    theme: 'Тема',
+    selected: 'Выбрано',
+    roster: 'Игроки',
+    disconnect: 'Отключиться',
+  },
+  dashboard: {
+    overview: 'Обзор панели',
+    map: {
+      tactical: 'ТАКТИЧЕСКАЯ КАРТА',
+      overlay: 'КАРТА МИРА АКТИВНА',
+      tracked: 'НА КАРТЕ',
+    },
+  },
+}

@@ -18,6 +18,7 @@ import {
 } from '@/components/server-control-cards'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 
 const ACTIVE_TAB_STORAGE_KEY = 'activeDashboardTab'
 
@@ -35,6 +36,7 @@ function readStoredTab(): DashboardTab {
 
 export function Dashboard() {
   const { connectionStatus, players } = useServer()
+  const { t } = useTranslation()
   const [playersSheetOpen, setPlayersSheetOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<DashboardTab>(readStoredTab)
 
@@ -75,7 +77,7 @@ export function Dashboard() {
                     <ScrollArea className="h-full lg:h-auto lg:flex-1">
                       <div className="p-3 sm:p-4 lg:p-6">
                         <div className="mb-6">
-                          <h2 className="font-mono text-lg font-semibold uppercase tracking-[0.14em] text-foreground sm:text-2xl sm:tracking-[0.24em]">Dashboard Overview</h2>
+                          <h2 className="font-mono text-lg font-semibold uppercase tracking-[0.14em] text-foreground sm:text-2xl sm:tracking-[0.24em]">{t('dashboard.overview')}</h2>
                         </div>
 
                         {/* Hero: live performance */}
@@ -114,14 +116,14 @@ export function Dashboard() {
               variant={connectionStatus === 'connected' ? 'info' : connectionStatus === 'checking' ? 'default' : 'alert'}
               leftContent={
                 <>
-                  <span>TACTICAL MAP</span>
-                  <span>WORLD OVERLAY ACTIVE</span>
+                  <span>{t('dashboard.map.tactical')}</span>
+                  <span>{t('dashboard.map.overlay')}</span>
                 </>
               }
               rightContent={
                 <>
-                  <span>{connectionStatus.toUpperCase()}</span>
-                  <span>{players.length.toString().padStart(2, '0')} TRACKED</span>
+                  <span>{t(`header.status.${connectionStatus}`)}</span>
+                  <span>{players.length.toString().padStart(2, '0')} {t('dashboard.map.tracked')}</span>
                 </>
               }
             />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useServer } from '@/lib/server-context'
 import { useTheme } from '@/lib/theme-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -15,6 +16,7 @@ import {
 import Link from 'next/link'
 import { BookOpenIcon, CheckIcon, CopyIcon, PaletteIcon, SettingsIcon } from 'lucide-react'
 import { PanelSettingsDialog } from '@/components/panel-settings-dialog'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 type DashboardTab = 'dashboard' | 'map'
 
@@ -41,6 +43,7 @@ const CONNECTION_TEXT_CLASS: Record<'connected' | 'checking' | 'disconnected', s
 export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayersClick }: DashboardHeaderProps) {
   const { config, clearConfig, players, connectionStatus, serverInfo } = useServer()
   const { theme, setTheme, themes } = useTheme()
+  const { t } = useTranslation()
   const [addressCopied, setAddressCopied] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -73,7 +76,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
             <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex min-w-0 items-baseline gap-2 font-mono">
                 <span className="truncate text-sm font-bold uppercase tracking-[0.14em] text-foreground">
-                  {serverInfo?.servername ?? 'Palworld Server'}
+                  {serverInfo?.servername ?? t('header.serverFallback')}
                 </span>
                 {serverInfo?.version && (
                   <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -85,7 +88,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
               <div className="flex shrink-0 items-center gap-2">
                 <span className={cn('status-dot h-2 w-2 rounded-full', CONNECTION_DOT_CLASS[connectionStatus])} />
                 <span className={cn('font-mono text-[10px] uppercase tracking-[0.2em]', CONNECTION_TEXT_CLASS[connectionStatus])}>
-                  {connectionStatus}
+                  {t(`header.status.${connectionStatus}`)}
                 </span>
               </div>
 
@@ -93,7 +96,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                 <button
                   type="button"
                   onClick={copyAddress}
-                  title={`Game ${gameAddress} · REST ${config.serverIp}:${config.restApiPort}`}
+                  title={t('header.addressTitle', { game: gameAddress, rest: `${config.serverIp}:${config.restApiPort}` })}
                   className="group flex min-w-0 items-center gap-1.5 rounded border border-border/50 bg-muted/20 px-2 py-1 font-mono text-[11px] tracking-[0.08em] text-foreground/80 transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   <span className="truncate">{gameAddress}</span>
@@ -105,7 +108,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                 </button>
               ) : (
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                  Awaiting Server Link
+                  {t('header.awaitingLink')}
                 </span>
               )}
             </div>
@@ -118,10 +121,10 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
             >
               <TabsList className="h-10 w-full rounded-md border border-border/60 bg-muted/20 sm:w-auto">
                 <TabsTrigger value="dashboard" className="px-3 font-mono text-[11px] uppercase tracking-[0.2em] data-[state=active]:border-primary/60 data-[state=active]:bg-primary/10 data-[state=active]:text-primary sm:px-4">
-                  Dashboard
+                  {t('header.tabDashboard')}
                 </TabsTrigger>
                 <TabsTrigger value="map" className="px-3 font-mono text-[11px] uppercase tracking-[0.2em] data-[state=active]:border-primary/60 data-[state=active]:bg-primary/10 data-[state=active]:text-primary sm:px-4">
-                  Live Map
+                  {t('header.tabMap')}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -136,16 +139,18 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
               >
                 <Link href="/docs">
                   <BookOpenIcon className="h-3.5 w-3.5" />
-                  Docs
+                  {t('header.docs')}
                 </Link>
               </Button>
+
+              <LanguageSwitcher className="flex-1 sm:flex-none" />
 
               {config?.accessTier === 'admin' && (
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => setSettingsOpen(true)}
-                  aria-label="Panel settings"
+                  aria-label={t('header.settingsAria')}
                   className="h-8 w-8"
                 >
                   <SettingsIcon className="h-3.5 w-3.5" />
@@ -159,7 +164,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                     className="h-8 flex-1 justify-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] sm:flex-none"
                   >
                     <PaletteIcon className="h-3.5 w-3.5" />
-                    Theme {themes.find((item) => item.value === theme)?.label ?? 'Tron'}
+                    {t('header.theme')} {themes.find((item) => item.value === theme)?.label ?? 'Tron'}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -176,7 +181,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                       </span>
                       <span className="flex items-center gap-2">
                         {theme === option.value && (
-                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">Selected</span>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">{t('header.selected')}</span>
                         )}
                         <span
                           className="status-dot h-2.5 w-2.5 rounded-full border border-white/20"
@@ -195,7 +200,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                   onClick={onPlayersClick}
                   className="h-8 flex-1 justify-center font-mono text-[11px] uppercase tracking-[0.2em] sm:flex-none xl:hidden"
                 >
-                  Roster {players.length}
+                  {t('header.roster')} {players.length}
                 </Button>
               )}
 
@@ -205,7 +210,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                 onClick={clearConfig}
                 className="no-interactive-glow h-8 flex-1 justify-center font-mono text-[11px] uppercase tracking-[0.2em] text-destructive hover:!bg-destructive hover:!text-destructive-foreground sm:flex-none"
               >
-                <span>Disconnect</span>
+                <span>{t('header.disconnect')}</span>
               </Button>
             </div>
           </div>
