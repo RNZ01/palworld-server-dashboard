@@ -114,12 +114,16 @@ interface ProgressTimelineProps extends React.HTMLAttributes<HTMLDivElement> {
   progress: number
   markers?: { position: number; label?: string; active?: boolean }[]
   currentLabel?: string
+  startLabel?: string
+  endLabel?: string
 }
 
 export function ProgressTimeline({
   progress,
   markers = [],
   currentLabel,
+  startLabel = "00:00",
+  endLabel = "END",
   className,
   ...props
 }: ProgressTimelineProps) {
@@ -155,9 +159,9 @@ export function ProgressTimeline({
 
       {/* Labels */}
       <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-foreground/80">
-        <span>00:00</span>
+        <span>{startLabel}</span>
         {currentLabel && <span className="text-primary">{currentLabel}</span>}
-        <span>END</span>
+        <span>{endLabel}</span>
       </div>
     </div>
   )

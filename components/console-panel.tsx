@@ -3,12 +3,42 @@
 import { useState } from 'react'
 import { DataStream } from '@/components/data-stream'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { Button } from '@/components/ui/button'
 import { TrashIcon } from 'lucide-react'
+import type { ConsoleLog } from '@/lib/types'
+
+// REST operations we have a dedicated, human-readable label for (console.op.*).
+// Anything outside this set falls back to showing the raw endpoint name, so a
+// new endpoint still logs something sensible instead of a missing i18n key.
+const KNOWN_OPS = new Set([
+  'info', 'settings', 'players', 'server-snapshot',
+  'announce', 'save', 'shutdown', 'stop', 'kick', 'ban', 'unban',
+])
 
 export function ConsolePanel() {
   const { consoleLogs, clearLogs } = useServer()
+  const { t, locale } = useTranslation()
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
+
+  // Human name of an operation (used inside error lines). Unknown endpoints
+  // degrade to their raw name.
+  const opName = (endpoint: string) =>
+    KNOWN_OPS.has(endpoint) ? t(`console.op.${endpoint}.name`) : endpoint
+
+  // The line shown for a log entry: a clear description of what happened,
+  // translated at render time so it follows the language switch.
+  const buildMessage = (log: ConsoleLog) => {
+    if (log.type === 'success') {
+      return KNOWN_OPS.has(log.endpoint)
+        ? t(`console.op.${log.endpoint}.ok`, log.params)
+        : t('console.genericOk', { action: log.endpoint })
+    }
+    return t('console.opError', {
+      action: opName(log.endpoint),
+      detail: log.detail ?? t('console.unknownError'),
+    })
+  }
 
   const toggleExpand = (id: string) => {
     setExpandedLogs(prev => {
@@ -23,7 +53,7 @@ export function ConsolePanel() {
   }
 
   const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString('en-US', {
+    return new Date(date).toLocaleTimeString(locale === 'ru' ? 'ru-RU' : 'en-US', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -42,7 +72,7 @@ export function ConsolePanel() {
   const streamEntries = [...consoleLogs].reverse().map((log) => ({
     id: log.id,
     timestamp: formatTime(log.timestamp),
-    text: `${log.message}${log.rawResponse && expandedLogs.has(log.id) ? `\n${formatRawResponse(log.rawResponse)}` : ''}`,
+    text: `${buildMessage(log)}${log.rawResponse && expandedLogs.has(log.id) ? `\n${formatRawResponse(log.rawResponse)}` : ''}`,
     type: (log.type === 'success' ? 'success' : log.type === 'error' ? 'error' : 'info') as 'success' | 'error' | 'info',
     expanded: expandedLogs.has(log.id),
     onClick: log.rawResponse ? () => toggleExpand(log.id) : undefined,
@@ -52,7 +82,7 @@ export function ConsolePanel() {
     <div className="flex h-full min-h-[34rem] flex-col rounded border border-border/50 bg-card/50 p-3 backdrop-blur-sm sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:text-xs sm:tracking-[0.24em]">
-          Console Feed ({consoleLogs.length})
+          {t('console.feed', { count: consoleLogs.length })}
         </div>
         <Button
           variant="ghost"
@@ -61,17 +91,17 @@ export function ConsolePanel() {
           className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
         >
           <TrashIcon className="w-3 h-3 mr-1" />
-          Clear
+          {t('console.clear')}
         </Button>
       </div>
       {/* Fill the grid cell: absolute inset feed never drives row height, scrolls internally. */}
       <div className="relative min-h-[10rem] flex-1 sm:min-h-[14rem]">
         <DataStream
-          title="SYSTEM TERMINAL"
+          title={t('console.terminalTitle')}
           entries={
             streamEntries.length > 0
               ? streamEntries
-              : [{ text: 'NO LOGS YET. API RESPONSES WILL APPEAR HERE.', type: 'warning' as const }]
+              : [{ text: t('console.noLogs'), type: 'warning' as const }]
           }
           fill
           streaming={streamEntries.length > 0}

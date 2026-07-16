@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PlayerRoster } from '@/components/player-roster'
@@ -27,6 +28,7 @@ const CONNECTION_DOT_CLASS: Record<'connected' | 'checking' | 'disconnected', st
 // endpoint server-side, so this widget could not reach them anyway.
 export function ModWidget() {
   const { apiCall, setPlayers, serverInfo, connectionStatus, clearConfig } = useServer()
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
 
   const fetchPlayers = useCallback(async () => {
@@ -50,12 +52,12 @@ export function ModWidget() {
       <header className="flex shrink-0 items-center gap-2.5 rounded border border-border/50 bg-card/50 px-3 py-2 backdrop-blur-sm">
         <span className={cn('h-2 w-2 shrink-0 rounded-full', CONNECTION_DOT_CLASS[connectionStatus])} />
         <span className="min-w-0 flex-1 truncate font-mono text-sm font-bold uppercase tracking-[0.14em] text-foreground">
-          {serverInfo?.servername ?? 'Palworld Server'}
+          {serverInfo?.servername ?? t('mod.serverFallback')}
         </span>
         <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
-          Mod
+          {t('mod.tier')}
         </span>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild aria-label="Docs">
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild aria-label={t('mod.docs')}>
           <Link href="/docs">
             <BookOpenIcon className="h-4 w-4" />
           </Link>
@@ -65,7 +67,7 @@ export function ModWidget() {
           size="icon"
           className="h-8 w-8 shrink-0"
           onClick={clearConfig}
-          aria-label="Disconnect"
+          aria-label={t('mod.disconnect')}
         >
           <LogOutIcon className="h-4 w-4" />
         </Button>
@@ -76,7 +78,7 @@ export function ModWidget() {
         <div className="relative mb-3">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
           <Input
-            placeholder="Search players..."
+            placeholder={t('mod.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9 text-sm"

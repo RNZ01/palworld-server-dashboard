@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildPalworldProxyHeaders, buildPalworldProxyPath, getPlayerKey, normalizePlayersPayload } from '@/lib/palworld'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import type { Player } from '@/lib/types'
 import points from '@/lib/map-points.json'
 
@@ -110,6 +111,7 @@ interface LiveMapProps {
 
 export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
   const { config, connectionStatus, players, setPlayers } = useServer()
+  const { t } = useTranslation()
   // gmaps-style view: top-left-origin transform, cursor-anchored wheel zoom, edge-clamped pan (owner spec 2026-07-10)
   const [view, setView] = useState<{ scale: number; tx: number; ty: number } | null>(null)
   const [mousePosition, setMousePosition] = useState<[string, string]>(['0.00', '0.00'])
@@ -519,29 +521,29 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
 
   const refreshLabel = useMemo(() => {
     if (!config) {
-      return 'Refresh: --'
+      return t('map.refreshIdle')
     }
 
     if (!isPageVisible) {
-      return 'Refresh: Paused'
+      return t('map.refreshPaused')
     }
 
-    return `Refresh: ${Math.max(0, Math.ceil(refreshCountdownMs / 1000))}s`
-  }, [config, isPageVisible, refreshCountdownMs])
+    return t('map.refreshIn', { n: Math.max(0, Math.ceil(refreshCountdownMs / 1000)) })
+  }, [config, isPageVisible, refreshCountdownMs, t])
 
   return (
     <div className="flex h-full w-full flex-col bg-background text-foreground">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border/60 bg-card/70 px-4 py-3 backdrop-blur">
         <div>
           <div className="flex items-center gap-2 text-lg font-semibold">
-            <span>Live Map V4</span>
+            <span>{t('map.title')}</span>
             <span className="relative inline-flex h-2.5 w-2.5">
               <span className="status-dot absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
               <span className="status-dot relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Direct image renderer with live player markers from the `players` API.
+            {t('map.description')}
           </p>
         </div>
 
@@ -553,10 +555,10 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             >
               <TabsList className="h-10 rounded-md border border-border/60 bg-muted/20">
                 <TabsTrigger value="dashboard" className="px-3 font-mono text-[11px] uppercase tracking-[0.2em] data-[state=active]:border-primary/60 data-[state=active]:bg-primary/10 data-[state=active]:text-primary sm:px-4">
-                  Dashboard
+                  {t('map.tabDashboard')}
                 </TabsTrigger>
                 <TabsTrigger value="map" className="px-3 font-mono text-[11px] uppercase tracking-[0.2em] data-[state=active]:border-primary/60 data-[state=active]:bg-primary/10 data-[state=active]:text-primary sm:px-4">
-                  Live Map
+                  {t('map.tabMap')}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -570,18 +572,18 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
                 className="h-10 gap-2 border-border/60 bg-muted/20 font-mono text-[11px] uppercase tracking-[0.2em]"
               >
                 <LayersIcon className="h-3.5 w-3.5" />
-                Layers
+                {t('map.layers')}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-56">
-              <DropdownMenuLabel>Map Layers</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('map.mapLayers')}</DropdownMenuLabel>
               <DropdownMenuCheckboxItem
                 checked={showFastTravels}
                 onCheckedChange={setShowFastTravels}
                 onSelect={(event) => event.preventDefault()}
                 disabled={mapMode === 'tree'}
               >
-                Fast Travel
+                {t('map.fastTravel')}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={showBossTowers}
@@ -589,14 +591,14 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
                 onSelect={(event) => event.preventDefault()}
                 disabled={mapMode === 'tree'}
               >
-                Boss Towers
+                {t('map.bossTowers')}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={showPlayers}
                 onCheckedChange={setShowPlayers}
                 onSelect={(event) => event.preventDefault()}
               >
-                Players
+                {t('map.players')}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -605,17 +607,17 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             <TabsList className="h-10 rounded-md border border-border/60 bg-muted/20">
               <TabsTrigger value="world" className="gap-1.5 px-3 font-mono text-[11px] uppercase tracking-[0.2em] data-[state=active]:border-primary/60 data-[state=active]:bg-primary/10 data-[state=active]:text-primary sm:px-4">
                 <MapIcon className="h-3.5 w-3.5" />
-                World
+                {t('map.world')}
               </TabsTrigger>
               <TabsTrigger value="tree" className="gap-1.5 px-3 font-mono text-[11px] uppercase tracking-[0.2em] data-[state=active]:border-primary/60 data-[state=active]:bg-primary/10 data-[state=active]:text-primary sm:px-4">
                 <TreePineIcon className="h-3.5 w-3.5" />
-                Tree
+                {t('map.tree')}
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
           <div className="flex h-10 items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Cursor</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('map.cursor')}</span>
             <span className="inline-block w-[24ch] text-right font-mono text-xs tabular-nums text-foreground">
               {mousePosition[0]}, {mousePosition[1]}
             </span>
@@ -624,10 +626,10 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="border border-border/60 bg-muted/40 text-foreground hover:bg-muted/50">
-            {connectionStatus}
+            {t(`map.status.${connectionStatus}`)}
           </Badge>
           <Badge variant="secondary" className="border border-border/60 bg-muted/40 text-foreground hover:bg-muted/50">
-            Players: {players.length}
+            {t('map.playersCount', { n: players.length })}
           </Badge>
           <Button
             size="icon"
@@ -663,7 +665,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             <source srcSet={mapImageAvif} type="image/avif" />
             <img
               src={mapImageUrl}
-              alt={mapMode === 'tree' ? 'Palworld World Tree map' : 'Palworld world map'}
+              alt={mapMode === 'tree' ? t('map.altTree') : t('map.altWorld')}
               className="block h-full w-full select-none object-cover"
               draggable={false}
               onLoad={() => {
@@ -678,7 +680,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
           </picture>
 
           <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-full border border-primary/45 bg-primary/15 px-3 py-1 text-xs font-semibold tracking-[0.2em] text-primary">
-            MAP V4
+            {t('map.badge')}
           </div>
         </div>
 
@@ -785,7 +787,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
         {!mapImageLoaded && !mapImageError && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/65">
             <div className="rounded-full border border-border/70 bg-card/85 px-4 py-2 text-sm font-medium text-foreground shadow-xl backdrop-blur">
-              Loading map image...
+              {t('map.loadingImage')}
             </div>
           </div>
         )}
@@ -793,9 +795,9 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
         {mapImageError && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/75 p-6">
             <div className="max-w-md rounded-2xl border border-destructive/35 bg-card/90 p-5 text-center text-foreground shadow-2xl">
-              <div className="text-lg font-semibold">Map image failed to load</div>
+              <div className="text-lg font-semibold">{t('map.imageFailed')}</div>
               <p className="mt-2 text-sm text-muted-foreground">
-                The app could not load <code className="font-mono text-destructive">{mapImageUrl}</code>.
+                {t('map.loadFailed')} <code className="font-mono text-destructive">{mapImageUrl}</code>.
               </p>
             </div>
           </div>

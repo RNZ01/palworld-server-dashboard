@@ -357,8 +357,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
       addLog({
         type: response.ok ? 'success' : 'error',
-        message: response.ok ? `${endpoint}: Request successful` : `${endpoint}: ${response.statusText}`,
         endpoint,
+        detail: response.ok ? undefined : (response.statusText || `HTTP ${response.status}`),
         rawResponse: responseText,
       })
 
@@ -387,8 +387,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
       addLog({
         type: 'error',
-        message: `${endpoint}: ${errorMessage}`,
         endpoint,
+        detail: errorMessage,
       })
       throw error
     } finally {
@@ -437,8 +437,12 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
       addLog({
         type: 'success',
-        message: 'server-snapshot: Request successful',
         endpoint: 'server-snapshot',
+        params: {
+          fps: payload.metrics?.serverfps ?? 0,
+          players: normalizePlayersPayload(payload.players).length,
+          samples: payload.fpsHistory?.samples?.length ?? 0,
+        },
         rawResponse: JSON.stringify({
           serverfps: payload.metrics?.serverfps ?? null,
           players: normalizePlayersPayload(payload.players).length,
@@ -464,8 +468,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
       addLog({
         type: 'error',
-        message: `server-snapshot: ${errorMessage}`,
         endpoint: 'server-snapshot',
+        detail: errorMessage,
       })
 
       console.warn('Failed to fetch server snapshot:', error)

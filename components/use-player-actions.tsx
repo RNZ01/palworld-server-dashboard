@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,52 +22,53 @@ import type { Player } from '@/lib/types'
 // callers wire kick/ban to setConfirmAction and render {confirmDialog}.
 export function usePlayerActions(onAfterAction?: () => void) {
   const { apiCall, addBannedPlayer, removeBannedPlayer } = useServer()
+  const { t } = useTranslation()
   const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; player: Player } | null>(null)
 
   const handleKick = async (player: Player) => {
     if (!player.userId) {
-      toast.error(`Cannot kick ${player.name}: missing user ID`)
+      toast.error(t('playerActions.kickMissingUserId', { name: player.name }))
       setConfirmAction(null)
       return
     }
     try {
       await apiCall('kick', 'POST', { userid: player.userId })
-      toast.success(`Kicked ${player.name}`)
+      toast.success(t('playerActions.kicked', { name: player.name }))
       onAfterAction?.()
     } catch {
-      toast.error(`Failed to kick ${player.name}`)
+      toast.error(t('playerActions.kickFailed', { name: player.name }))
     }
     setConfirmAction(null)
   }
 
   const handleBan = async (player: Player) => {
     if (!player.userId) {
-      toast.error(`Cannot ban ${player.name}: missing user ID`)
+      toast.error(t('playerActions.banMissingUserId', { name: player.name }))
       setConfirmAction(null)
       return
     }
     try {
       await apiCall('ban', 'POST', { userid: player.userId })
       addBannedPlayer({ name: player.name, steamId: player.userId, bannedAt: new Date().toISOString() })
-      toast.success(`Banned ${player.name}`)
+      toast.success(t('playerActions.banned', { name: player.name }))
       onAfterAction?.()
     } catch {
-      toast.error(`Failed to ban ${player.name}`)
+      toast.error(t('playerActions.banFailed', { name: player.name }))
     }
     setConfirmAction(null)
   }
 
   const handleUnban = async (player: Player) => {
     if (!player.userId) {
-      toast.error(`Cannot unban ${player.name}: missing user ID`)
+      toast.error(t('playerActions.unbanMissingUserId', { name: player.name }))
       return
     }
     try {
       await apiCall('unban', 'POST', { userid: player.userId })
       removeBannedPlayer(player.userId)
-      toast.success(`Unbanned ${player.name}`)
+      toast.success(t('playerActions.unbanned', { name: player.name }))
     } catch {
-      toast.error(`Failed to unban ${player.name}`)
+      toast.error(t('playerActions.unbanFailed', { name: player.name }))
     }
   }
 
@@ -74,14 +76,17 @@ export function usePlayerActions(onAfterAction?: () => void) {
     <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{confirmAction?.type === 'kick' ? 'Kick Player' : 'Ban Player'}</AlertDialogTitle>
+          <AlertDialogTitle>{confirmAction?.type === 'kick' ? t('playerActions.kickTitle') : t('playerActions.banTitle')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to {confirmAction?.type} {confirmAction?.player.name}?
-            {confirmAction?.type === 'ban' && ' This action can be reversed by unbanning the player.'}
+            {confirmAction?.type === 'kick'
+              ? t('playerActions.confirmKick', { name: confirmAction.player.name })
+              : confirmAction?.type === 'ban'
+                ? t('playerActions.confirmBan', { name: confirmAction.player.name })
+                : null}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
               if (confirmAction?.type === 'kick') handleKick(confirmAction.player)
@@ -89,7 +94,7 @@ export function usePlayerActions(onAfterAction?: () => void) {
             }}
             className={confirmAction?.type === 'ban' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
           >
-            {confirmAction?.type === 'kick' ? 'Kick' : 'Ban'}
+            {confirmAction?.type === 'kick' ? t('playerActions.kick') : t('playerActions.ban')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

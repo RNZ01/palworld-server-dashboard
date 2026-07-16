@@ -48,9 +48,14 @@ export interface FpsSample {
 export interface ConsoleLog {
   id: string
   type: 'success' | 'error' | 'info'
-  message: string
   timestamp: Date
   endpoint: string
+  // Rendered into a human-readable, translated line by the console panel at
+  // display time (so log lines follow the active language). `detail` carries an
+  // error string; `params` feeds the per-endpoint message template (e.g. the
+  // snapshot's FPS / player / history-sample counts).
+  detail?: string
+  params?: Record<string, string | number>
   rawResponse?: string
 }
 

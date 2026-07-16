@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -50,6 +51,7 @@ function getPlayerInitial(name: string) {
 
 export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetProps) {
   const { players, apiCall, setPlayers, isLoading, addBannedPlayer, bannedPlayers, removeBannedPlayer } = useServer()
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; player: Player } | null>(null)
 
@@ -64,17 +66,17 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
 
   const handleKick = async (player: Player) => {
     if (!player.userId) {
-      toast.error('Cannot kick this player: missing user ID')
+      toast.error(t('players.cannotKickThisPlayer'))
       setConfirmAction(null)
       return
     }
 
     try {
       await apiCall('kick', 'POST', { userid: player.userId })
-      toast.success(`Kicked ${player.name}`)
+      toast.success(t('players.kicked', { name: player.name }))
       await fetchPlayers()
     } catch {
-      toast.error(`Failed to kick ${player.name}`)
+      toast.error(t('players.failedKick', { name: player.name }))
     } finally {
       setConfirmAction(null)
     }
@@ -82,7 +84,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
 
   const handleBan = async (player: Player) => {
     if (!player.userId) {
-      toast.error('Cannot ban this player: missing user ID')
+      toast.error(t('players.cannotBanThisPlayer'))
       setConfirmAction(null)
       return
     }
@@ -90,10 +92,10 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
     try {
       await apiCall('ban', 'POST', { userid: player.userId })
       addBannedPlayer({ name: player.name, steamId: player.userId, bannedAt: new Date().toISOString() })
-      toast.success(`Banned ${player.name}`)
+      toast.success(t('players.banned', { name: player.name }))
       await fetchPlayers()
     } catch {
-      toast.error(`Failed to ban ${player.name}`)
+      toast.error(t('players.failedBan', { name: player.name }))
     } finally {
       setConfirmAction(null)
     }
@@ -101,16 +103,16 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
 
   const handleUnban = async (player: Player) => {
     if (!player.userId) {
-      toast.error('Cannot unban this player: missing user ID')
+      toast.error(t('players.cannotUnbanThisPlayer'))
       return
     }
 
     try {
       await apiCall('unban', 'POST', { userid: player.userId })
       removeBannedPlayer(player.userId)
-      toast.success(`Unbanned ${player.name}`)
+      toast.success(t('players.unbanned', { name: player.name }))
     } catch {
-      toast.error(`Failed to unban ${player.name}`)
+      toast.error(t('players.failedUnban', { name: player.name }))
     }
   }
 
@@ -142,7 +144,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
             <SheetTitle className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-2">
                 <UsersIcon className="h-5 w-5 text-primary" />
-                Online Players ({players.length})
+                {t('players.onlinePlayersCount', { n: players.length })}
               </span>
               <Button
                 variant="outline"
@@ -163,7 +165,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search players..."
+                placeholder={t('players.searchPlaceholder')}
                 className="h-9 pl-9 text-sm"
               />
             </div>
@@ -176,7 +178,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
                   <UsersIcon className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {searchQuery ? 'No matching players found' : 'No players online'}
+                  {searchQuery ? t('players.noMatchingPlayers') : t('players.noPlayersOnline')}
                 </p>
               </div>
             ) : (
@@ -205,12 +207,12 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
                             <p className="truncate text-sm font-medium text-foreground">{player.name}</p>
                             {isBanned && (
                               <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                                BANNED
+                                {t('players.bannedBadge')}
                               </span>
                             )}
                           </div>
                           <p className="truncate text-xs text-muted-foreground">
-                            {player.accountName || 'Field Operator'} · Level {player.level || 'N/A'}
+                            {player.accountName || t('players.fieldOperator')} · {t('players.levelValue', { level: player.level || t('players.na') })}
                           </p>
                           <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                             <WifiIcon className={`h-3 w-3 ${getPingColor(ping)}`} />
@@ -230,7 +232,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
                             onClick={() => void handleUnban(player)}
                           >
                             {isLoading['unban'] ? <Spinner className="h-3.5 w-3.5" /> : <UnlockIcon className="h-3.5 w-3.5" />}
-                            Unban
+                            {t('players.unban')}
                           </Button>
                         ) : (
                           <>
@@ -242,7 +244,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
                               onClick={() => setConfirmAction({ type: 'kick', player })}
                             >
                               <UserXIcon className="h-3.5 w-3.5" />
-                              Kick
+                              {t('players.kick')}
                             </Button>
                             <Button
                               variant="destructive"
@@ -252,7 +254,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
                               onClick={() => setConfirmAction({ type: 'ban', player })}
                             >
                               <BanIcon className="h-3.5 w-3.5" />
-                              Ban
+                              {t('players.ban')}
                             </Button>
                           </>
                         )}
@@ -269,14 +271,17 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
       <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmAction?.type === 'kick' ? 'Kick Player' : 'Ban Player'}</AlertDialogTitle>
+            <AlertDialogTitle>{confirmAction?.type === 'kick' ? t('players.kickPlayer') : t('players.banPlayer')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to {confirmAction?.type} {confirmAction?.player.name}?
-              {confirmAction?.type === 'ban' && ' This action can be reversed by unbanning the player.'}
+              {t('players.confirmActionQuestion', {
+                action: confirmAction?.type === 'ban' ? t('players.actionBan') : t('players.actionKick'),
+                name: confirmAction?.player.name ?? '',
+              })}
+              {confirmAction?.type === 'ban' && ` ${t('players.banReversible')}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!confirmAction) {
@@ -291,7 +296,7 @@ export function MobilePlayersSheet({ open, onOpenChange }: MobilePlayersSheetPro
               }}
               className={confirmAction?.type === 'ban' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
             >
-              {confirmAction?.type === 'kick' ? 'Kick' : 'Ban'}
+              {confirmAction?.type === 'kick' ? t('players.kick') : t('players.ban')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -71,28 +72,29 @@ const MOD_WIDGET_HIDDEN_USERIDS = new Set(
 
 export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', className }: PlayerRosterProps) {
   const { apiCall, players, addBannedPlayer, bannedPlayers, removeBannedPlayer } = useServer()
+  const { t } = useTranslation()
   const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; player: Player } | null>(null)
 
   const handleKick = async (player: Player) => {
     if (!player.userId) {
-      toast.error(`Cannot kick ${player.name}: missing user ID`)
+      toast.error(t('players.cannotKickMissingId', { name: player.name }))
       setConfirmAction(null)
       return
     }
 
     try {
       await apiCall('kick', 'POST', { userid: player.userId })
-      toast.success(`Kicked ${player.name}`)
+      toast.success(t('players.kicked', { name: player.name }))
       onAfterAction?.()
     } catch {
-      toast.error(`Failed to kick ${player.name}`)
+      toast.error(t('players.failedKick', { name: player.name }))
     }
     setConfirmAction(null)
   }
 
   const handleBan = async (player: Player) => {
     if (!player.userId) {
-      toast.error(`Cannot ban ${player.name}: missing user ID`)
+      toast.error(t('players.cannotBanMissingId', { name: player.name }))
       setConfirmAction(null)
       return
     }
@@ -100,26 +102,26 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
     try {
       await apiCall('ban', 'POST', { userid: player.userId })
       addBannedPlayer({ name: player.name, steamId: player.userId, bannedAt: new Date().toISOString() })
-      toast.success(`Banned ${player.name}`)
+      toast.success(t('players.banned', { name: player.name }))
       onAfterAction?.()
     } catch {
-      toast.error(`Failed to ban ${player.name}`)
+      toast.error(t('players.failedBan', { name: player.name }))
     }
     setConfirmAction(null)
   }
 
   const handleUnban = async (player: Player) => {
     if (!player.userId) {
-      toast.error(`Cannot unban ${player.name}: missing user ID`)
+      toast.error(t('players.cannotUnbanMissingId', { name: player.name }))
       return
     }
 
     try {
       await apiCall('unban', 'POST', { userid: player.userId })
       removeBannedPlayer(player.userId)
-      toast.success(`Unbanned ${player.name}`)
+      toast.success(t('players.unbanned', { name: player.name }))
     } catch {
-      toast.error(`Failed to unban ${player.name}`)
+      toast.error(t('players.failedUnban', { name: player.name }))
     }
   }
 
@@ -193,10 +195,10 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-medium text-foreground truncate">{player.name}</p>
-              {isBanned && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive shrink-0">BANNED</span>}
+              {isBanned && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive shrink-0">{t('players.bannedBadge')}</span>}
             </div>
             <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-              Lvl {player.level}
+              {t('players.lvl', { level: player.level })}
               {player.accountName && player.accountName !== player.name && (
                 <><span className="mx-0.5">·</span><span className="truncate max-w-20">{player.accountName}</span></>
               )}
@@ -220,20 +222,20 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => toggleWatch(player)}>
               <EyeIcon className="w-4 h-4 mr-2" />
-              Watchlist
+              {t('players.watchlist')}
               {watched && <CheckIcon className="w-4 h-4 ml-auto text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {!isBanned && (
               <DropdownMenuItem onClick={() => setConfirmAction({ type: 'kick', player })}>
                 <UserIcon className="w-4 h-4 mr-2" />
-                Kick Player
+                {t('players.kickPlayer')}
               </DropdownMenuItem>
             )}
             {isBanned ? (
               <DropdownMenuItem onClick={() => handleUnban(player)}>
                 <UnlockIcon className="w-4 h-4 mr-2" />
-                Unban Player
+                {t('players.unbanPlayer')}
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem
@@ -241,7 +243,7 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
                 className="text-destructive focus:text-destructive"
               >
                 <BanIcon className="w-4 h-4 mr-2" />
-                Ban Player
+                {t('players.banPlayer')}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -256,14 +258,14 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
         <div className="p-2">
           {filteredPlayers.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">
-              {search ? 'No players found' : 'No players online'}
+              {search ? t('players.noPlayersFound') : t('players.noPlayersOnline')}
             </div>
           ) : (
             <div className="space-y-1">
               {watchedPlayers.length > 0 && (
                 <>
                   <div className="flex items-center gap-1.5 px-1 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-primary/80">
-                    <EyeIcon className="h-3 w-3" /> Watchlist
+                    <EyeIcon className="h-3 w-3" /> {t('players.watchlist')}
                   </div>
                   {watchedPlayers.map((player) => renderPlayerRow(player))}
                   <div className="my-1.5 border-t border-border/40" />
@@ -280,15 +282,18 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmAction?.type === 'kick' ? 'Kick Player' : 'Ban Player'}
+              {confirmAction?.type === 'kick' ? t('players.kickPlayer') : t('players.banPlayer')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to {confirmAction?.type} {confirmAction?.player.name}?
-              {confirmAction?.type === 'ban' && ' This action can be reversed by unbanning the player.'}
+              {t('players.confirmActionQuestion', {
+                action: confirmAction?.type === 'ban' ? t('players.actionBan') : t('players.actionKick'),
+                name: confirmAction?.player.name ?? '',
+              })}
+              {confirmAction?.type === 'ban' && ` ${t('players.banReversible')}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (confirmAction?.type === 'kick') {
@@ -299,7 +304,7 @@ export function PlayerRoster({ search, onAfterAction, variant = 'sidebar', class
               }}
               className={confirmAction?.type === 'ban' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
             >
-              {confirmAction?.type === 'kick' ? 'Kick' : 'Ban'}
+              {confirmAction?.type === 'kick' ? t('players.kick') : t('players.ban')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

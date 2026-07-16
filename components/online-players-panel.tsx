@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -21,6 +22,7 @@ export function OnlinePlayersPanel() {
   // (owner order 2026-07-14: one call for metrics+players, no configurable
   // poll rates) — this panel renders it and diffs updates for join/leave toasts.
   const { players, isLoading, fetchAllData, fetchSnapshot, nextSnapshotFetchAt, snapshotPollIntervalMs } = useServer()
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [countdown, setCountdown] = useState<number | null>(null)
   const previousPlayersRef = useRef<Player[]>(players)
@@ -39,13 +41,13 @@ export function OnlinePlayersPanel() {
       const left = prevPlayers.filter((player) => !newIds.has(getPlayerKey(player)))
 
       joined.forEach((player) => {
-        toast.success(`${player.name} joined the server`, {
+        toast.success(t('players.joinedServer', { name: player.name }), {
           icon: <UserIcon className="w-4 h-4 text-green-500" />,
         })
       })
 
       left.forEach((player) => {
-        toast.info(`${player.name} left the server`, {
+        toast.info(t('players.leftServer', { name: player.name }), {
           icon: <UserIcon className="w-4 h-4 text-yellow-500" />,
         })
       })
@@ -89,7 +91,7 @@ export function OnlinePlayersPanel() {
           <div className="relative">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
             <Input
-              placeholder="Search players..."
+              placeholder={t('players.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-9 text-sm"
@@ -101,7 +103,7 @@ export function OnlinePlayersPanel() {
             <div className="flex h-9 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded-md px-3">
               <ClockIcon className="w-3 h-3" />
               <span>
-                Auto {Math.floor(snapshotPollIntervalMs / 1000)}s · next in{' '}
+                {t('players.autoNext', { s: Math.floor(snapshotPollIntervalMs / 1000) })}{' '}
                 <span className="font-mono font-medium text-foreground">
                   {countdown != null ? formatCountdown(countdown) : '–:––'}
                 </span>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { HUDCornerFrame } from '@/components/hud-corner-frame'
 import { IdentityDisc } from '@/components/identity-disc'
 import { InfoPanel, ProgressTimeline, StatusBar } from '@/components/status-bar'
@@ -16,6 +17,7 @@ interface LoginTransitionProps {
 }
 
 export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProps) {
+  const { t } = useTranslation()
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
@@ -39,12 +41,12 @@ export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProp
   }, [onComplete])
 
   const terminalLines = useMemo(() => ([
-    { text: 'AUTH TOKEN ACCEPTED', type: 'success' as const },
-    { text: `TARGET UPLINK RESOLVED :: ${serverLabel.toUpperCase()}`, type: 'system' as const },
-    { text: 'SYNCING CONTROL SURFACES', type: 'output' as const },
-    { text: 'WARMING LIVE METRICS CACHE', type: 'output' as const },
-    { text: 'MOUNTING COMMAND GRID', type: 'input' as const },
-  ]), [serverLabel])
+    { text: t('loginTransition.terminal.authAccepted'), type: 'success' as const },
+    { text: t('loginTransition.terminal.targetUplink', { server: serverLabel.toUpperCase() }), type: 'system' as const },
+    { text: t('loginTransition.terminal.syncing'), type: 'output' as const },
+    { text: t('loginTransition.terminal.warmingCache'), type: 'output' as const },
+    { text: t('loginTransition.terminal.mounting'), type: 'input' as const },
+  ]), [serverLabel, t])
 
   const status = progress >= 100 ? 'complete' : progress >= 55 ? 'pending' : 'active'
   const signalStrength = Math.max(18, Math.round(progress))
@@ -59,14 +61,14 @@ export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProp
           variant="info"
           leftContent={
             <>
-              <span>SECURE UPLINK</span>
-              <span>LOGIN SEQUENCE ACCEPTED</span>
+              <span>{t('loginTransition.secureUplink')}</span>
+              <span>{t('loginTransition.loginAccepted')}</span>
             </>
           }
           rightContent={
             <>
               <span>{serverLabel.toUpperCase()}</span>
-              <span>{progress >= 100 ? 'GRID READY' : 'BOOTING'}</span>
+              <span>{progress >= 100 ? t('loginTransition.gridReady') : t('loginTransition.booting')}</span>
             </>
           }
         />
@@ -79,24 +81,24 @@ export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProp
             <HUDCornerFrame position="bottom-right" size={54} />
 
             <UplinkHeader
-              leftText="POST-LOGIN HANDSHAKE"
-              rightText={progress >= 100 ? 'ROUTE OPEN' : 'ROUTING TO COMMAND NEXUS'}
+              leftText={t('loginTransition.handshake')}
+              rightText={progress >= 100 ? t('loginTransition.routeOpen') : t('loginTransition.routing')}
               variant="cyan"
               className="-mx-5 -mt-5 mb-5 sm:-mx-6 sm:-mt-6"
             />
 
             <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
               <InfoPanel
-                title="Operator Sync"
-                subtitle="Identity Lock"
+                title={t('loginTransition.operatorSync')}
+                subtitle={t('loginTransition.identityLock')}
                 status={status}
                 className="min-h-[28rem]"
               >
                 <div className="mt-2 flex h-full flex-col justify-between gap-6">
                   <div className="flex flex-col items-center gap-5 text-center">
                     <IdentityDisc
-                      name="Grid Operator"
-                      designation="Palworld Admin"
+                      name={t('loginTransition.gridOperator')}
+                      designation={t('loginTransition.adminDesignation')}
                       id="CTRL-01"
                       accessLevel="admin"
                       status="active"
@@ -104,7 +106,7 @@ export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProp
                     />
                     <SignalIndicator
                       strength={signalStrength}
-                      label="Link Integrity"
+                      label={t('loginTransition.linkIntegrity')}
                       showValue
                       status={progress >= 70 ? 'connected' : progress >= 35 ? 'weak' : 'disconnected'}
                     />
@@ -113,24 +115,26 @@ export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProp
                   <div className="space-y-4">
                     <ProgressTimeline
                       progress={progress}
-                      currentLabel={progress >= 100 ? 'COMPLETE' : 'SYNCHRONIZING'}
+                      startLabel={t('loginTransition.timelineStart')}
+                      endLabel={t('loginTransition.timelineEnd')}
+                      currentLabel={progress >= 100 ? t('loginTransition.complete') : t('loginTransition.synchronizing')}
                       markers={[
-                        { position: 18, label: 'AUTH', active: progress >= 18 },
-                        { position: 42, label: 'LINK', active: progress >= 42 },
-                        { position: 68, label: 'CACHE', active: progress >= 68 },
-                        { position: 92, label: 'GRID', active: progress >= 92 },
+                        { position: 18, label: t('loginTransition.markers.auth'), active: progress >= 18 },
+                        { position: 42, label: t('loginTransition.markers.link'), active: progress >= 42 },
+                        { position: 68, label: t('loginTransition.markers.cache'), active: progress >= 68 },
+                        { position: 92, label: t('loginTransition.markers.grid'), active: progress >= 92 },
                       ]}
                     />
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-lg border border-border/50 bg-secondary/25 px-3 py-2">
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Target</div>
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{t('loginTransition.target')}</div>
                         <div className="mt-1 font-mono text-sm text-primary">{serverLabel}</div>
                       </div>
                       <div className="rounded-lg border border-border/50 bg-secondary/25 px-3 py-2">
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Status</div>
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{t('loginTransition.status')}</div>
                         <div className="mt-1 font-mono text-sm text-primary">
-                          {progress >= 100 ? 'Command Grid Ready' : 'Initializing'}
+                          {progress >= 100 ? t('loginTransition.commandGridReady') : t('loginTransition.initializing')}
                         </div>
                       </div>
                     </div>
@@ -139,7 +143,7 @@ export function LoginTransition({ serverLabel, onComplete }: LoginTransitionProp
               </InfoPanel>
 
               <Terminal
-                title="GRID BOOTSTRAP"
+                title={t('loginTransition.terminal.title')}
                 lines={terminalLines}
                 variant="default"
                 className="min-h-[28rem]"

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PanelSection } from '@/components/server-control-cards'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import {
   PALWORLD_PROXY_HEADERS,
   buildPalworldProxyHeaders,
@@ -50,6 +51,7 @@ function ChatRow({
   player?: Player
   onAction: (type: 'kick' | 'ban', player: Player) => void
 }) {
+  const { t } = useTranslation()
   const rowRef = useRef<HTMLDivElement | null>(null)
   const [timePos, setTimePos] = useState<{ left: number; top: number } | null>(null)
 
@@ -80,33 +82,33 @@ function ChatRow({
                     type="button"
                     className="cursor-pointer font-semibold text-foreground underline-offset-2 hover:underline"
                   >
-                    {event.name || 'unknown'}
+                    {event.name || t('chat.unknown')}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-40">
                   <DropdownMenuItem onClick={() => onAction('kick', player)}>
                     <UserIcon className="mr-2 h-4 w-4" />
-                    Kick Player
+                    {t('chat.kickPlayer')}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => onAction('ban', player)}
                     className="text-destructive focus:text-destructive"
                   >
                     <BanIcon className="mr-2 h-4 w-4" />
-                    Ban Player
+                    {t('chat.banPlayer')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <b className="font-semibold text-foreground">{event.name || 'unknown'}</b>
+              <b className="font-semibold text-foreground">{event.name || t('chat.unknown')}</b>
             )}
             <span className="text-foreground/40">: </span>
             <span className="text-foreground/90">{event.text}</span>
           </>
         ) : event.type === 'join' ? (
-          <span className="text-green-500/90">→ {event.name} joined</span>
+          <span className="text-green-500/90">{t('chat.joined', { name: event.name })}</span>
         ) : (
-          <span className="text-muted-foreground">← {event.name} left</span>
+          <span className="text-muted-foreground">{t('chat.left', { name: event.name })}</span>
         )}
       </span>
       {timePos &&
@@ -126,6 +128,7 @@ function ChatRow({
 
 export function ChatPanel() {
   const { config, players } = useServer()
+  const { t } = useTranslation()
   const { setConfirmAction, confirmDialog } = usePlayerActions()
   const [events, setEvents] = useState<ChatEvent[]>([])
   const [input, setInput] = useState('')
@@ -205,7 +208,7 @@ export function ChatPanel() {
       // Next poll surfaces the echoed message; make sure we're pinned to see it.
       atBottomRef.current = true
     } catch {
-      toast.error('Failed to send message')
+      toast.error(t('chat.sendFailed'))
     } finally {
       setSending(false)
     }
@@ -221,8 +224,8 @@ export function ChatPanel() {
 
   return (
     <PanelSection
-      title="Chat"
-      subtitle="Live Game Chat"
+      title={t('chat.title')}
+      subtitle={t('chat.liveGameChat')}
       status="active"
       className="min-h-[34rem]"
       contentClassName="mt-0 flex min-h-0 flex-1 flex-col gap-3"
@@ -233,7 +236,7 @@ export function ChatPanel() {
 
         <div className="relative z-10 flex items-center gap-2 border-b border-border/50 px-4 py-2">
           <div className="status-dot h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]" />
-          <span className="text-[10px] uppercase tracking-widest text-foreground/80">Live Game Chat</span>
+          <span className="text-[10px] uppercase tracking-widest text-foreground/80">{t('chat.liveGameChat')}</span>
           <span className="ml-auto font-mono text-[10px] text-foreground/40">{events.length}</span>
         </div>
 
@@ -245,7 +248,7 @@ export function ChatPanel() {
           >
             {events.length === 0 ? (
               <div className="flex h-full items-center justify-center px-4 py-8 text-center font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-                No chat yet. Player messages will appear here.
+                {t('chat.empty')}
               </div>
             ) : (
               events.map((event, index) => (
@@ -266,9 +269,9 @@ export function ChatPanel() {
         <Input
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={`Message as ${CHAT_SENDER_LABEL}…`}
+          placeholder={t('chat.messageAs', { sender: CHAT_SENDER_LABEL })}
           disabled={sending}
-          aria-label="Chat message"
+          aria-label={t('chat.inputAria')}
           className="flex-1 font-mono text-xs"
         />
         <Button
@@ -278,7 +281,7 @@ export function ChatPanel() {
           className={cn('shrink-0 bg-chart-2 text-background hover:bg-chart-2/90')}
         >
           <SendIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Send</span>
+          <span className="hidden sm:inline">{t('chat.send')}</span>
         </Button>
       </form>
       {confirmDialog}

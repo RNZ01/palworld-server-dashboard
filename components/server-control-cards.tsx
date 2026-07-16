@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { InfoPanel } from '@/components/status-bar'
 import { useServer } from '@/lib/server-context'
+import { useTranslation } from '@/lib/i18n/i18n-context'
 import { buildPalworldProxyHeaders } from '@/lib/palworld'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ import { toast } from 'sonner'
 import {
   SaveIcon,
   PowerIcon,
+  PlayIcon,
   StopCircleIcon,
   SearchIcon
 } from 'lucide-react'
@@ -39,6 +41,10 @@ const FPS_SAMPLE_NOMINAL_MS = 5_000 // sampler cadence — one sample ≈ 5s of 
 // median sliding off baseline = structural sag; longest continuous <45 stretch
 // growing past ~60-90s = dips becoming valleys; >10% of the hour under 30 = budget blown.
 const FPS_DIP_THRESHOLD = 45
+
+// Translator function shape from useTranslation(); passed into module-level
+// builders/helpers that produce user-facing strings.
+type Translate = (path: string, params?: Record<string, string | number>) => string
 
 export function PanelSection({
   title,
@@ -80,74 +86,78 @@ function getQuickMessageToneClass(preset: PresetMessage) {
   return QUICK_MESSAGE_TONE_CLASS[preset.tone ?? 'neutral']
 }
 
-const RESTART_PRESET_MESSAGES: PresetMessage[] = [
-  {
-    label: '⚠ Restart in 1 min',
-    message: '⚠ Server will restart in 1 minute. Please find a safe spot!',
-    tone: 'warning',
-    reminders: [
-      { delayMs: 30_000, message: '⚠ Server restarting in 30 seconds!' },
-      { delayMs: 50_000, message: '⚠ Server restarting in 10 seconds!' },
-    ],
-  },
-  {
-    label: '⚠ Restart in 5 min',
-    message: '⚠ Server will restart in 5 minutes.',
-    tone: 'warning',
-    reminders: [
-      { delayMs:  60_000, message: '⚠ Server restarting in 4 minutes.' },
-      { delayMs: 120_000, message: '⚠ Server restarting in 3 minutes.' },
-      { delayMs: 180_000, message: '⚠ Server restarting in 2 minutes.' },
-      { delayMs: 240_000, message: '⚠ Server restarting in 1 minute!' },
-      { delayMs: 270_000, message: '⚠ Server restarting in 30 seconds!' },
-      { delayMs: 290_000, message: '⚠ Server restarting in 10 seconds!' },
-    ],
-  },
-  {
-    label: '⚠ Restart in 10 min',
-    message: '⚠ Server will restart in 10 minutes.',
-    tone: 'warning',
-    reminders: [
-      { delayMs: 300_000, message: '⚠ Server restarting in 5 minutes.' },
-      { delayMs: 480_000, message: '⚠ Server restarting in 2 minutes!' },
-      { delayMs: 540_000, message: '⚠ Server restarting in 1 minute!' },
-      { delayMs: 570_000, message: '⚠ Server restarting in 30 seconds!' },
-      { delayMs: 590_000, message: '⚠ Server restarting in 10 seconds!' },
-    ],
-  },
-]
+function buildRestartPresets(t: Translate): PresetMessage[] {
+  return [
+    {
+      label: t('serverControl.management.restart.presets.min1.label'),
+      message: t('serverControl.management.restart.presets.min1.message'),
+      tone: 'warning',
+      reminders: [
+        { delayMs: 30_000, message: t('serverControl.management.restart.reminders.sec30') },
+        { delayMs: 50_000, message: t('serverControl.management.restart.reminders.sec10') },
+      ],
+    },
+    {
+      label: t('serverControl.management.restart.presets.min5.label'),
+      message: t('serverControl.management.restart.presets.min5.message'),
+      tone: 'warning',
+      reminders: [
+        { delayMs:  60_000, message: t('serverControl.management.restart.reminders.min4') },
+        { delayMs: 120_000, message: t('serverControl.management.restart.reminders.min3') },
+        { delayMs: 180_000, message: t('serverControl.management.restart.reminders.min2') },
+        { delayMs: 240_000, message: t('serverControl.management.restart.reminders.min1') },
+        { delayMs: 270_000, message: t('serverControl.management.restart.reminders.sec30') },
+        { delayMs: 290_000, message: t('serverControl.management.restart.reminders.sec10') },
+      ],
+    },
+    {
+      label: t('serverControl.management.restart.presets.min10.label'),
+      message: t('serverControl.management.restart.presets.min10.message'),
+      tone: 'warning',
+      reminders: [
+        { delayMs: 300_000, message: t('serverControl.management.restart.reminders.min5') },
+        { delayMs: 480_000, message: t('serverControl.management.restart.reminders.min2excl') },
+        { delayMs: 540_000, message: t('serverControl.management.restart.reminders.min1') },
+        { delayMs: 570_000, message: t('serverControl.management.restart.reminders.sec30') },
+        { delayMs: 590_000, message: t('serverControl.management.restart.reminders.sec10') },
+      ],
+    },
+  ]
+}
 
 // Quick messages grouped for the Announcements card: info/status first,
 // then event/gameplay callouts, then maintenance/warning-adjacent last.
-const QUICK_MESSAGE_GROUPS: { label: string; presets: PresetMessage[] }[] = [
-  {
-    label: 'Info & Status',
-    presets: [
-      { label: 'Admin online',     message: 'An admin is online. Play fair!', tone: 'info' },
-      { label: 'Rules reminder',   message: 'Reminder: Keep chat respectful and avoid griefing.', tone: 'info' },
-      { label: 'Save complete',    message: 'World has been saved successfully.', tone: 'success' },
-      { label: 'Backup complete',  message: '✅ Backup complete. Thank you for your patience.', tone: 'success' },
-      { label: 'Restart complete', message: '✅ Server restart complete. Welcome back!', tone: 'success' },
-    ],
-  },
-  {
-    label: 'Events & Gameplay',
-    presets: [
-      { label: 'PvP event soon',   message: '⚔ PvP event starts in 5 minutes. Gear up and meet at base!', tone: 'info' },
-      { label: 'Server full soon', message: 'Server population is high. Slots may fill up soon.', tone: 'warning' },
-    ],
-  },
-  {
-    label: 'Maintenance & Warnings',
-    presets: [
-      { label: 'Prepare to save',   message: 'Saving world in 60 seconds. Please avoid risky actions.', tone: 'warning' },
-      { label: 'Backup running',    message: '💾 Backup is now running. Temporary lag may occur.', tone: 'warning' },
-      { label: 'High latency',      message: '⚠ High latency detected. We are monitoring server performance.', tone: 'warning' },
-      { label: 'Maintenance soon',  message: 'Maintenance starting soon. Server will go offline briefly.', tone: 'warning' },
-      { label: 'Admin maintenance', message: 'Admin tools maintenance in progress. Some actions may be delayed.', tone: 'warning' },
-    ],
-  },
-]
+function buildQuickMessageGroups(t: Translate): { label: string; presets: PresetMessage[] }[] {
+  return [
+    {
+      label: t('serverControl.announce.groups.info'),
+      presets: [
+        { label: t('serverControl.announce.presets.adminOnline.label'),     message: t('serverControl.announce.presets.adminOnline.message'), tone: 'info' },
+        { label: t('serverControl.announce.presets.rulesReminder.label'),   message: t('serverControl.announce.presets.rulesReminder.message'), tone: 'info' },
+        { label: t('serverControl.announce.presets.saveComplete.label'),    message: t('serverControl.announce.presets.saveComplete.message'), tone: 'success' },
+        { label: t('serverControl.announce.presets.backupComplete.label'),  message: t('serverControl.announce.presets.backupComplete.message'), tone: 'success' },
+        { label: t('serverControl.announce.presets.restartComplete.label'), message: t('serverControl.announce.presets.restartComplete.message'), tone: 'success' },
+      ],
+    },
+    {
+      label: t('serverControl.announce.groups.events'),
+      presets: [
+        { label: t('serverControl.announce.presets.pvpSoon.label'),   message: t('serverControl.announce.presets.pvpSoon.message'), tone: 'info' },
+        { label: t('serverControl.announce.presets.serverFullSoon.label'), message: t('serverControl.announce.presets.serverFullSoon.message'), tone: 'warning' },
+      ],
+    },
+    {
+      label: t('serverControl.announce.groups.maintenance'),
+      presets: [
+        { label: t('serverControl.announce.presets.prepareToSave.label'),   message: t('serverControl.announce.presets.prepareToSave.message'), tone: 'warning' },
+        { label: t('serverControl.announce.presets.backupRunning.label'),    message: t('serverControl.announce.presets.backupRunning.message'), tone: 'warning' },
+        { label: t('serverControl.announce.presets.highLatency.label'),      message: t('serverControl.announce.presets.highLatency.message'), tone: 'warning' },
+        { label: t('serverControl.announce.presets.maintenanceSoon.label'),  message: t('serverControl.announce.presets.maintenanceSoon.message'), tone: 'warning' },
+        { label: t('serverControl.announce.presets.adminMaintenance.label'), message: t('serverControl.announce.presets.adminMaintenance.message'), tone: 'warning' },
+      ],
+    },
+  ]
+}
 
 // Hover/focus popover previewing the exact message a quick-send button fires.
 // Portalled to <body> so it escapes the card's `overflow-hidden` clipping; no
@@ -161,6 +171,7 @@ function QuickSendButton({
   disabled?: boolean
   onSend: (preset: PresetMessage) => void
 }) {
+  const { t } = useTranslation()
   const triggerRef = useRef<HTMLSpanElement | null>(null)
   const [tipPos, setTipPos] = useState<{ left: number; top: number } | null>(null)
 
@@ -187,7 +198,7 @@ function QuickSendButton({
         type="button"
         variant="outline"
         size="sm"
-        aria-label={`Send announcement: ${preset.message}`}
+        aria-label={t('serverControl.announce.sendAria', { message: preset.message })}
         className={cn(
           'h-auto whitespace-normal px-2 py-1 text-left text-xs',
           getQuickMessageToneClass(preset)
@@ -213,26 +224,28 @@ function QuickSendButton({
 
 export function AnnouncementCard() {
   const { apiCall, isLoading } = useServer()
+  const { t } = useTranslation()
   const sending = !!isLoading['announce']
+  const quickMessageGroups = buildQuickMessageGroups(t)
 
   const sendPreset = async (preset: PresetMessage) => {
     try {
       await apiCall('announce', 'POST', { message: preset.message })
-      toast.success('Announcement sent')
+      toast.success(t('serverControl.announce.sent'))
     } catch {
-      toast.error('Failed to send announcement')
+      toast.error(t('serverControl.announce.sendFailed'))
     }
   }
 
   return (
-    <PanelSection title="Announcements" subtitle="Broadcast Channel" status="active">
+    <PanelSection title={t('serverControl.announce.title')} subtitle={t('serverControl.announce.subtitle')} status="active">
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Quick Messages</p>
+          <p className="text-xs font-medium text-muted-foreground">{t('serverControl.announce.quickMessages')}</p>
           <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-            Click to broadcast instantly. Hover a button to preview the exact message.
+            {t('serverControl.announce.quickHint')}
           </p>
           <div className="space-y-2.5">
-            {QUICK_MESSAGE_GROUPS.map((group) => (
+            {quickMessageGroups.map((group) => (
               <div key={group.label} className="space-y-1">
                 <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70">
                   {group.label}
@@ -256,12 +269,30 @@ export function AnnouncementCard() {
 }
 
 export function ServerManagementCard() {
-  const { apiCall, isLoading, config } = useServer()
+  const { apiCall, isLoading, config, connectionStatus } = useServer()
+  const { t } = useTranslation()
+  const restartPresets = buildRestartPresets(t)
   const [confirmAction, setConfirmAction] = useState<'shutdown' | 'stop' | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
   const [activeSchedule, setActiveSchedule] = useState<{ label: string; endsAt: number } | null>(null)
   const [remaining, setRemaining] = useState(0)
   const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  // Only a confirmed 'disconnected' means the server is off; 'checking' is a
+  // transient poll state and stays "online" to avoid the button flickering.
+  const serverOnline = connectionStatus !== 'disconnected'
+
+  // Clear the transient "starting…" state once the server answers REST again,
+  // or after a safety timeout if it never comes up (e.g. start failed on host).
+  useEffect(() => {
+    if (serverOnline && isStarting) setIsStarting(false)
+  }, [serverOnline, isStarting])
+  useEffect(() => {
+    if (!isStarting) return
+    const id = setTimeout(() => setIsStarting(false), 120_000)
+    return () => clearTimeout(id)
+  }, [isStarting])
 
   useEffect(() => {
     if (!activeSchedule) return
@@ -320,29 +351,29 @@ export function ServerManagementCard() {
     try {
       const ok = await triggerServerRestart(Math.round(waittimeMs / 1000), preset.message)
       if (!ok) {
-        toast.error('Failed to schedule restart — is the server host integration set up?')
+        toast.error(t('serverControl.management.restart.scheduleFailedIntegration'))
         return
       }
       setActiveSchedule({ label: preset.label, endsAt: Date.now() + waittimeMs })
       setRemaining(waittimeMs)
-      toast.success('Restart scheduled — the server will come back automatically')
+      toast.success(t('serverControl.management.restart.scheduled'))
     } catch {
-      toast.error('Failed to schedule restart')
+      toast.error(t('serverControl.management.restart.scheduleFailed'))
     }
   }
 
   const cancelRestartSchedule = async () => {
     clearScheduleTimers()
     if (!config) {
-      toast.info('Schedule cancelled')
+      toast.info(t('serverControl.management.restart.cancelled'))
       return
     }
     try {
       const headers = new Headers(buildPalworldProxyHeaders(config))
       await fetch('/api/server-restart', { method: 'DELETE', headers, cache: 'no-store' })
-      toast.success('Restart cancelled — players notified')
+      toast.success(t('serverControl.management.restart.cancelledNotified'))
     } catch {
-      toast.info('Cancel request failed to send')
+      toast.info(t('serverControl.management.restart.cancelFailed'))
     }
   }
 
@@ -356,11 +387,11 @@ export function ServerManagementCard() {
   const saveWorldAndAnnounce = async (): Promise<boolean> => {
     try {
       await apiCall('save', 'POST')
-      await announceSilently('World has been saved successfully.')
-      toast.success('World saved successfully')
+      await announceSilently(t('serverControl.management.announce.worldSaved'))
+      toast.success(t('serverControl.management.toast.worldSaved'))
       return true
     } catch {
-      toast.error('Failed to save world')
+      toast.error(t('serverControl.management.toast.saveFailed'))
       return false
     }
   }
@@ -381,16 +412,16 @@ export function ServerManagementCard() {
       }
       
       // Announce shutdown
-      await announceSilently('⚠ Server will shutdown in 10 seconds!')
-      toast.info('Shutdown announced - waiting 10 seconds...')
-      
+      await announceSilently(t('serverControl.management.announce.shutdownSoon'))
+      toast.info(t('serverControl.management.toast.shutdownAnnounced'))
+
       // Wait 10 seconds then shutdown
       await new Promise(resolve => setTimeout(resolve, 10000))
-      
+
       await apiCall('shutdown', 'POST', { waittime: 1 })
-      toast.success('Server shutdown initiated')
+      toast.success(t('serverControl.management.toast.shutdownInitiated'))
     } catch {
-      toast.error('Failed to shutdown server')
+      toast.error(t('serverControl.management.toast.shutdownFailed'))
     }
     setIsProcessing(false)
     setConfirmAction(null)
@@ -408,22 +439,49 @@ export function ServerManagementCard() {
       }
       
       // Announce stop
-      await announceSilently('⚠ Server force stopping now!')
-      
+      await announceSilently(t('serverControl.management.announce.forceStopping'))
+
       await apiCall('stop', 'POST')
-      toast.success('Server stopped')
+      toast.success(t('serverControl.management.toast.stopped'))
     } catch {
-      toast.error('Failed to stop server')
+      toast.error(t('serverControl.management.toast.stopFailed'))
     }
     setIsProcessing(false)
     setConfirmAction(null)
   }
 
+  // Starting a stopped server can't go through the game REST API (it's down):
+  // this hits the host power route, which drops a `start` flag consumed by the
+  // root worker running `systemctl start palworld.service`.
+  const startServer = async () => {
+    if (!config) return
+    setIsStarting(true)
+    try {
+      const headers = new Headers(buildPalworldProxyHeaders(config))
+      headers.set('Content-Type', 'application/json')
+      const res = await fetch('/api/server-power', {
+        method: 'POST',
+        headers,
+        cache: 'no-store',
+        body: JSON.stringify({ action: 'start' }),
+      })
+      if (!res.ok) {
+        setIsStarting(false)
+        toast.error(t('serverControl.management.startFailed'))
+        return
+      }
+      toast.success(t('serverControl.management.startInitiated'))
+    } catch {
+      setIsStarting(false)
+      toast.error(t('serverControl.management.startFailed'))
+    }
+  }
+
     return (
       <>
       <PanelSection
-        title="Server Management"
-        subtitle="Command Deck"
+        title={t('serverControl.management.title')}
+        subtitle={t('serverControl.management.subtitle')}
         status={isProcessing || activeSchedule ? 'pending' : 'active'}
         contentClassName="mt-0 flex flex-1 flex-col gap-3"
       >
@@ -433,7 +491,8 @@ export function ServerManagementCard() {
                 <span className="status-dot h-2 w-2 shrink-0 animate-pulse rounded-full bg-warning" />
                 <span className="text-warning font-medium">{activeSchedule.label}</span>
                 <span className="text-muted-foreground">
-                  — next reminder in <span className="font-mono font-semibold text-foreground">{formatRemaining(remaining)}</span>
+                  {t('serverControl.management.restart.nextReminder')}{' '}
+                  <span className="font-mono font-semibold text-foreground">{formatRemaining(remaining)}</span>
                 </span>
               </div>
               <Button
@@ -442,19 +501,19 @@ export function ServerManagementCard() {
                 className="h-6 px-2 text-xs text-destructive hover:text-destructive"
                 onClick={cancelRestartSchedule}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </div>
           )}
 
+          {serverOnline && (
           <div className="space-y-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5">
-            <p className="text-[11px] font-semibold text-amber-300">Restart Schedules</p>
+            <p className="text-[11px] font-semibold text-amber-300">{t('serverControl.management.restart.heading')}</p>
             <p className="text-[10px] leading-relaxed text-amber-200/85">
-              Triggering a restart announces a countdown to players, then performs a graceful save-and-restart on the
-              host — the server comes back automatically, no manual start needed. Hit Cancel to abort before it fires.
+              {t('serverControl.management.restart.description')}
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {RESTART_PRESET_MESSAGES.map((preset) => (
+              {restartPresets.map((preset) => (
                 <Button
                   key={preset.label}
                   onClick={() => scheduleRestart(preset)}
@@ -468,8 +527,11 @@ export function ServerManagementCard() {
               ))}
             </div>
           </div>
+          )}
 
           <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
+          {serverOnline ? (
+          <>
           <Button
             onClick={saveWorld}
             disabled={isLoading['save'] || isProcessing}
@@ -477,7 +539,7 @@ export function ServerManagementCard() {
             className="w-full !border-emerald-500/60 !bg-emerald-500/12 !text-emerald-200 hover:!bg-emerald-500/22 hover:!text-emerald-100"
           >
             {isLoading['save'] ? <Spinner className="w-4 h-4 mr-2" /> : <SaveIcon className="w-4 h-4 mr-2" />}
-            Save World
+            {t('serverControl.management.saveWorld')}
           </Button>
           <Button
             onClick={() => setConfirmAction('shutdown')}
@@ -486,7 +548,7 @@ export function ServerManagementCard() {
             className="w-full !border-amber-500/60 !bg-amber-500/12 !text-amber-200 hover:!bg-amber-500/22 hover:!text-amber-100"
           >
             <PowerIcon className="w-4 h-4 mr-2" />
-            Shutdown Server
+            {t('serverControl.management.shutdown')}
           </Button>
           <Button
             onClick={() => setConfirmAction('stop')}
@@ -495,8 +557,23 @@ export function ServerManagementCard() {
             className="w-full !border-red-500/65 !bg-red-500/14 !text-red-200 hover:!bg-red-500/24 hover:!text-red-100"
           >
             <StopCircleIcon className="w-4 h-4 mr-2" />
-            Force Stop
+            {t('serverControl.management.forceStop')}
           </Button>
+          </>
+          ) : (
+          <>
+          <p className="text-center text-xs text-muted-foreground">{t('serverControl.management.offlineHint')}</p>
+          <Button
+            onClick={startServer}
+            disabled={isStarting}
+            variant="outline"
+            className="w-full !border-emerald-500/60 !bg-emerald-500/12 !text-emerald-200 hover:!bg-emerald-500/22 hover:!text-emerald-100"
+          >
+            {isStarting ? <Spinner className="w-4 h-4 mr-2" /> : <PlayIcon className="w-4 h-4 mr-2" />}
+            {isStarting ? t('serverControl.management.starting') : t('serverControl.management.start')}
+          </Button>
+          </>
+          )}
           </div>
       </PanelSection>
 
@@ -504,23 +581,23 @@ export function ServerManagementCard() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmAction === 'shutdown' ? 'Shutdown Server' : 'Force Stop Server'}
+              {confirmAction === 'shutdown' ? t('serverControl.management.confirmShutdownTitle') : t('serverControl.management.confirmStopTitle')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction === 'shutdown'
-                ? 'This will save the world, announce shutdown, wait 10 seconds, then shutdown the server.'
-                : 'This will save the world, announce the stop, then immediately stop the server.'}
+                ? t('serverControl.management.confirmShutdownDesc')
+                : t('serverControl.management.confirmStopDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isProcessing}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmAction === 'shutdown' ? shutdownServer : stopServer}
               disabled={isProcessing}
               className={confirmAction === 'stop' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-warning text-warning-foreground hover:bg-warning/90'}
             >
               {isProcessing ? <Spinner className="w-4 h-4 mr-2" /> : null}
-              {confirmAction === 'shutdown' ? (isProcessing ? 'Shutting down...' : 'Shutdown') : (isProcessing ? 'Stopping...' : 'Force Stop')}
+              {confirmAction === 'shutdown' ? (isProcessing ? t('serverControl.management.shuttingDown') : t('serverControl.management.shutdownAction')) : (isProcessing ? t('serverControl.management.stopping') : t('serverControl.management.forceStop'))}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -531,23 +608,24 @@ export function ServerManagementCard() {
 
 export function BanManagementCard() {
   const { apiCall, isLoading, bannedPlayers, removeBannedPlayer } = useServer()
+  const { t } = useTranslation()
 
   const handleUnban = async (steamId: string) => {
     try {
       await apiCall('unban', 'POST', { userid: steamId })
       removeBannedPlayer(steamId)
-      toast.success(`Player unbanned`)
+      toast.success(t('serverControl.ban.unbanned'))
     } catch {
-      toast.error('Failed to unban player')
+      toast.error(t('serverControl.ban.unbanFailed'))
     }
   }
 
   return (
-    <PanelSection title="Ban Management" subtitle="Sanctions Ledger" status={bannedPlayers.length > 0 ? 'pending' : 'active'} className="min-h-[34rem]">
+    <PanelSection title={t('serverControl.ban.title')} subtitle={t('serverControl.ban.subtitle')} status={bannedPlayers.length > 0 ? 'pending' : 'active'} className="min-h-[34rem]">
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Banned Players ({bannedPlayers.length})</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('serverControl.ban.bannedPlayers', { count: bannedPlayers.length })}</p>
           {bannedPlayers.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-3">No banned players 🎉</p>
+          <p className="text-xs text-muted-foreground text-center py-3">{t('serverControl.ban.noBanned')}</p>
           ) : (
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {bannedPlayers.map((banned) => (
@@ -563,7 +641,7 @@ export function BanManagementCard() {
                     disabled={isLoading['unban']}
                     onClick={() => handleUnban(banned.steamId)}
                   >
-                    {isLoading['unban'] ? <Spinner className="w-3 h-3" /> : 'Unban'}
+                    {isLoading['unban'] ? <Spinner className="w-3 h-3" /> : t('serverControl.ban.unban')}
                   </Button>
                 </div>
               ))}
@@ -644,14 +722,14 @@ interface FpsHealthVerdict {
   detail: string
 }
 
-function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
+function computeFpsHealth(input: FpsHealthInput, t: Translate): FpsHealthVerdict {
   const muted = 'text-muted-foreground'
 
   if (input.sampleCount === 0 && input.currentFps == null) {
-    return { score: null, label: 'No Data', colorClass: muted, detail: 'No FPS samples yet — sampler starting or server down.' }
+    return { score: null, label: t('serverControl.metrics.health.noData'), colorClass: muted, detail: t('serverControl.metrics.health.noDataDetail') }
   }
   if (input.sampleCount > 0 && input.newestSampleAgeMs > 5 * 60 * 1000) {
-    return { score: null, label: 'Stale', colorClass: muted, detail: 'Newest ring sample is over 5 minutes old — sampler or server down; verdict withheld rather than guessed.' }
+    return { score: null, label: t('serverControl.metrics.health.stale'), colorClass: muted, detail: t('serverControl.metrics.health.staleDetail') }
   }
   if (
     input.sampleCount < HEALTH_MIN_SAMPLES ||
@@ -660,7 +738,7 @@ function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
     input.under30Pct == null ||
     input.longestDipMs == null
   ) {
-    return { score: null, label: 'Calibrating', colorClass: muted, detail: `Collecting ring data (${input.sampleCount}/${HEALTH_MIN_SAMPLES} samples) — verdict after ~5 minutes.` }
+    return { score: null, label: t('serverControl.metrics.health.calibrating'), colorClass: muted, detail: t('serverControl.metrics.health.calibratingDetail', { count: input.sampleCount, total: HEALTH_MIN_SAMPLES }) }
   }
 
   const recent = input.recentMedian ?? input.hourMedian
@@ -681,39 +759,45 @@ function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
 
   // Veto caps: [description, cap, tripped]. The tightest tripped cap wins.
   const caps: Array<[string, number, boolean]> = [
-    ['1-min median < 10', 35, input.lastMinuteMedian != null && input.lastMinuteMedian < 10],
-    ['1-min median < 15', 40, input.lastMinuteMedian != null && input.lastMinuteMedian < 15],
-    ['10-min median < 25', 25, recent < 25],
-    ['10-min median < 30', 35, recent < 30],
-    ['10-min median < 45', 65, recent < 45],
-    ['hour median < 30', 30, input.hourMedian < 30],
-    ['hour median < 45', 60, input.hourMedian < 45],
-    ['under-30 budget > 25%', 30, input.under30Pct > 25],
-    ['under-30 budget > 10%', 60, input.under30Pct > 10],
-    ['longest dip > 3m', 40, input.longestDipMs > 180_000],
-    ['longest dip > 90s', 60, input.longestDipMs > 90_000],
+    [t('serverControl.metrics.health.caps.min1med10'), 35, input.lastMinuteMedian != null && input.lastMinuteMedian < 10],
+    [t('serverControl.metrics.health.caps.min1med15'), 40, input.lastMinuteMedian != null && input.lastMinuteMedian < 15],
+    [t('serverControl.metrics.health.caps.min10med25'), 25, recent < 25],
+    [t('serverControl.metrics.health.caps.min10med30'), 35, recent < 30],
+    [t('serverControl.metrics.health.caps.min10med45'), 65, recent < 45],
+    [t('serverControl.metrics.health.caps.hourMed30'), 30, input.hourMedian < 30],
+    [t('serverControl.metrics.health.caps.hourMed45'), 60, input.hourMedian < 45],
+    [t('serverControl.metrics.health.caps.budget25'), 30, input.under30Pct > 25],
+    [t('serverControl.metrics.health.caps.budget10'), 60, input.under30Pct > 10],
+    [t('serverControl.metrics.health.caps.dip3m'), 40, input.longestDipMs > 180_000],
+    [t('serverControl.metrics.health.caps.dip90s'), 60, input.longestDipMs > 90_000],
   ]
   const active = caps.filter(([, cap, tripped]) => tripped && cap < blend)
   const score = Math.min(blend, ...active.map(([, cap]) => cap))
 
   const [label, colorClass] =
-    score >= 90 ? ['Excellent', 'text-emerald-400'] :
-    score >= 75 ? ['Good', 'text-lime-400'] :
-    score >= 55 ? ['Fair', 'text-yellow-400'] :
-    score >= 35 ? ['Degraded', 'text-orange-400'] :
-    ['Critical', 'text-red-500']
+    score >= 90 ? [t('serverControl.metrics.health.excellent'), 'text-emerald-400'] :
+    score >= 75 ? [t('serverControl.metrics.health.good'), 'text-lime-400'] :
+    score >= 55 ? [t('serverControl.metrics.health.fair'), 'text-yellow-400'] :
+    score >= 35 ? [t('serverControl.metrics.health.degraded'), 'text-orange-400'] :
+    [t('serverControl.metrics.health.critical'), 'text-red-500']
 
   const limiting = active.length > 0
-    ? active.map(([name, cap]) => `${name} (cap ${cap})`).join(', ')
-    : 'none'
-  const detail =
-    `Health ${Math.round(score)}/100 — ` +
-    `hour median ${input.hourMedian.toFixed(1)} (${Math.round(components.median)}), ` +
-    `10-min median ${recent.toFixed(1)} (${Math.round(components.recent)}), ` +
-    `avg ${input.hourAvg.toFixed(1)} (${Math.round(components.avg)}), ` +
-    `under-30 ${input.under30Pct.toFixed(1)}% (${Math.round(components.budget)}), ` +
-    `longest <45 ${formatDipDuration(input.longestDipMs)} (${Math.round(components.dip)}). ` +
-    `Limiting: ${limiting}.`
+    ? active.map(([name, cap]) => t('serverControl.metrics.health.capEntry', { name, cap })).join(', ')
+    : t('serverControl.metrics.health.none')
+  const detail = t('serverControl.metrics.health.detail', {
+    score: Math.round(score),
+    hourMedian: input.hourMedian.toFixed(1),
+    medianComp: Math.round(components.median),
+    recentMedian: recent.toFixed(1),
+    recentComp: Math.round(components.recent),
+    avg: input.hourAvg.toFixed(1),
+    avgComp: Math.round(components.avg),
+    under30: input.under30Pct.toFixed(1),
+    budgetComp: Math.round(components.budget),
+    longestDip: formatDipDuration(input.longestDipMs),
+    dipComp: Math.round(components.dip),
+    limiting,
+  })
 
   return { score, label, colorClass, detail }
 }
@@ -753,6 +837,7 @@ function FpsHistoryGraph({
   currentFps: number | null
   pollIntervalMs: number
 }) {
+  const { t } = useTranslation()
   // Measure the chart area so the SVG viewBox maps 1:1 to CSS pixels —
   // no letterboxing/stretching at any container width.
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null)
@@ -882,7 +967,7 @@ function FpsHistoryGraph({
     newestSampleAgeMs: orderedSamples.length > 0
       ? now - orderedSamples[orderedSamples.length - 1].timestamp
       : Number.POSITIVE_INFINITY,
-  })
+  }, t)
 
   // Segments split on real data holes (server/sampler downtime) so the chart
   // never draws an interpolated bridge across a gap in the ring.
@@ -928,10 +1013,10 @@ function FpsHistoryGraph({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Server FPS</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">{t('serverControl.metrics.serverFps')}</p>
           <div className="mt-1 flex items-end gap-2">
             <span className={cn('font-mono text-3xl font-semibold tracking-[0.08em]', currentFpsColorClass)}>
-              {currentFps != null ? currentFps.toFixed(1) : 'N/A'}
+              {currentFps != null ? currentFps.toFixed(1) : t('serverControl.metrics.na')}
             </span>
             <div className="flex flex-col items-start gap-1 pb-1">
               {/* General health verdict (owner order 2026-07-14): blend + veto caps
@@ -948,16 +1033,16 @@ function FpsHistoryGraph({
                 <span className="h-2 w-2 rounded-full bg-current" />
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em]">{health.label}</span>
               </div>
-              <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Live</span>
+              <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.live')}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Refresh · every {Math.floor(pollIntervalMs / 1000)}s
+            {t('serverControl.metrics.refreshEvery', { seconds: Math.floor(pollIntervalMs / 1000) })}
           </span>
           <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-[0.2em]">
-            1 Hour History
+            {t('serverControl.metrics.hourHistory')}
           </Badge>
         </div>
       </div>
@@ -1042,7 +1127,7 @@ function FpsHistoryGraph({
 
             {chartSamples.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center font-mono text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                Awaiting Metrics Samples
+                {t('serverControl.metrics.awaitingSamples')}
               </div>
             )}
           </div>
@@ -1050,55 +1135,55 @@ function FpsHistoryGraph({
 
         <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
           {Array.from({ length: 5 }, (_, i) => (
-            <span key={i}>{i === 4 ? 'Now' : formatAxisAge((FPS_HISTORY_WINDOW_MS * (4 - i)) / 4)}</span>
+            <span key={i}>{i === 4 ? t('serverControl.metrics.now') : formatAxisAge((FPS_HISTORY_WINDOW_MS * (4 - i)) / 4)}</span>
           ))}
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Min</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.min')}</div>
           <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(minFps))}>
-            {minFps != null ? minFps.toFixed(1) : 'N/A'}
+            {minFps != null ? minFps.toFixed(1) : t('serverControl.metrics.na')}
           </div>
         </div>
         <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Avg</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.avg')}</div>
           <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(avgFps))}>
-            {avgFps != null ? avgFps.toFixed(1) : 'N/A'}
+            {avgFps != null ? avgFps.toFixed(1) : t('serverControl.metrics.na')}
           </div>
         </div>
         <div className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2">
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Max</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.max')}</div>
           <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(maxFps))}>
-            {maxFps != null ? maxFps.toFixed(1) : 'N/A'}
+            {maxFps != null ? maxFps.toFixed(1) : t('serverControl.metrics.na')}
           </div>
         </div>
         <div
           className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2"
-          title="Structural health: the plateau the server actually runs at. If this slides off baseline, standing sim load has grown — that's the signal that matters."
+          title={t('serverControl.metrics.medianTip')}
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Median</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.median')}</div>
           <div className={cn('mt-1 font-mono text-sm', getFpsTextColorClass(medianFps))}>
-            {medianFps != null ? medianFps.toFixed(1) : 'N/A'}
+            {medianFps != null ? medianFps.toFixed(1) : t('serverControl.metrics.na')}
           </div>
         </div>
         <div
           className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2"
-          title="Longest continuous stretch below 45 FPS this hour (gap-aware). ~30s bursts are normal sim spikes; 60-90s+ valleys mean trouble."
+          title={t('serverControl.metrics.longestDipTip')}
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Longest &lt;45</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.longestDip')}</div>
           <div className={cn('mt-1 font-mono text-sm', getDipDurationColorClass(longestDipMs))}>
-            {longestDipMs != null ? formatDipDuration(longestDipMs) : 'N/A'}
+            {longestDipMs != null ? formatDipDuration(longestDipMs) : t('serverControl.metrics.na')}
           </div>
         </div>
         <div
           className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2"
-          title="Share of the last hour spent below 30 FPS (the burst budget). Past ~10% players feel it."
+          title={t('serverControl.metrics.under30Tip')}
         >
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Under 30</div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.metrics.under30')}</div>
           <div className={cn('mt-1 font-mono text-sm', getUnder30BudgetColorClass(under30Pct))}>
-            {under30Pct != null ? `${under30Pct.toFixed(1)}%` : 'N/A'}
+            {under30Pct != null ? `${under30Pct.toFixed(1)}%` : t('serverControl.metrics.na')}
           </div>
         </div>
       </div>
@@ -1119,6 +1204,7 @@ export function MetricsCard() {
   // Player count sources from the roster (players.length) — the same truth the
   // roster panel renders — NOT metrics.currentplayernum (owner order 2026-07-10).
   const { serverMetrics, fpsHistory, players, snapshotPollIntervalMs } = useServer()
+  const { t } = useTranslation()
 
   const uptime = serverMetrics
     ? (() => {
@@ -1127,12 +1213,12 @@ export function MetricsCard() {
         const m = Math.floor((u % 3600) / 60)
         return h > 0 ? `${h}h ${m}m` : `${m}m`
       })()
-    : 'N/A'
+    : t('serverControl.metrics.na')
 
   return (
     <PanelSection
-      title="Metrics"
-      subtitle="Live Performance"
+      title={t('serverControl.metrics.title')}
+      subtitle={t('serverControl.metrics.subtitle')}
       status={serverMetrics ? 'active' : 'pending'}
       className="min-h-0"
     >
@@ -1144,14 +1230,14 @@ export function MetricsCard() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <MetricTile
-          label="Frame Time"
-          value={serverMetrics ? `${(serverMetrics.serverframetime ?? 0).toFixed(2)}ms` : 'N/A'}
+          label={t('serverControl.metrics.frameTime')}
+          value={serverMetrics ? `${(serverMetrics.serverframetime ?? 0).toFixed(2)}ms` : t('serverControl.metrics.na')}
         />
-        <MetricTile label="Uptime" value={uptime} />
-        <MetricTile label="World Day" value={serverMetrics?.days != null ? `${serverMetrics.days}` : 'N/A'} />
-        <MetricTile label="Bases" value={serverMetrics?.basecampnum != null ? `${serverMetrics.basecampnum}` : 'N/A'} />
+        <MetricTile label={t('serverControl.metrics.uptime')} value={uptime} />
+        <MetricTile label={t('serverControl.metrics.worldDay')} value={serverMetrics?.days != null ? `${serverMetrics.days}` : t('serverControl.metrics.na')} />
+        <MetricTile label={t('serverControl.metrics.bases')} value={serverMetrics?.basecampnum != null ? `${serverMetrics.basecampnum}` : t('serverControl.metrics.na')} />
         <MetricTile
-          label="Players"
+          label={t('serverControl.metrics.players')}
           value={serverMetrics ? `${players.length}/${serverMetrics.maxplayernum}` : `${players.length}`}
         />
       </div>
@@ -1251,6 +1337,7 @@ function ColoredJson({ data, highlightQuery = '' }: { data: Record<string, unkno
 
 export function SettingsCard() {
   const { settings, serverInfo } = useServer()
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const jsonContainerRef = useRef<HTMLDivElement | null>(null)
   const normalizedQuery = searchQuery.trim().toLowerCase()
@@ -1292,28 +1379,28 @@ export function SettingsCard() {
 
   return (
     <PanelSection
-      title="Settings"
-      subtitle="Configuration Snapshot"
+      title={t('serverControl.settings.title')}
+      subtitle={t('serverControl.settings.subtitle')}
       status={settings ? 'complete' : 'active'}
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
         <div className="space-y-2">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Description</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.settings.description')}</div>
             <div className="mt-0.5 break-words font-mono text-sm text-foreground">
-              {serverInfo?.description || 'No description'}
+              {serverInfo?.description || t('serverControl.settings.noDescription')}
             </div>
           </div>
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">World GUID</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t('serverControl.settings.worldGuid')}</div>
             <div className="mt-0.5 break-all font-mono text-sm text-foreground">
-              {serverInfo?.worldguid ?? 'Unknown'}
+              {serverInfo?.worldguid ?? t('serverControl.settings.unknown')}
             </div>
           </div>
         </div>
         {settings && (
           <div className="space-y-1.5">
-            <FieldLabel htmlFor="settings-search">Search Settings</FieldLabel>
+            <FieldLabel htmlFor="settings-search">{t('serverControl.settings.search')}</FieldLabel>
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
               <Input
@@ -1321,7 +1408,7 @@ export function SettingsCard() {
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by key or value..."
+                placeholder={t('serverControl.settings.searchPlaceholder')}
                 className="h-8 pl-9 text-xs"
               />
             </div>
@@ -1334,7 +1421,7 @@ export function SettingsCard() {
             style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
           >
             {!hasSearchResults && normalizedQuery && (
-              <p className="py-6 text-center text-xs text-muted-foreground">No settings matched your search.</p>
+              <p className="py-6 text-center text-xs text-muted-foreground">{t('serverControl.settings.noResults')}</p>
             )}
             <ColoredJson data={settings} highlightQuery={searchQuery} />
           </div>
