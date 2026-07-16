@@ -7,11 +7,21 @@ import type { ServerConfig, Player, ConsoleLog, ServerInfo, ServerMetrics, Banne
 type ConnectionStatus = 'disconnected' | 'checking' | 'connected'
 
 // FPS history is SERVER-SIDE (owner order 2026-07-13): palworld-fps-sampler.service
-// maintains the authoritative 1h ring (5s cadence) in /run/palworld-metrics and the
-// panel only fetches + displays it — the browser never collects.
-// These constants sanitize the fetched payload and must match the sampler.
-const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000
-const FPS_HISTORY_MAX_SAMPLES = 720 // 1h at the sampler's 5s cadence
+// maintains the authoritative ring (5s cadence) in /run/palworld-metrics and the
+// panel only fetches + displays it — the browser never collects. The window is
+// the sampler's (FPS_WINDOW_MINUTES), delivered per-snapshot as `windowMs`; these
+// helpers sanitize the fetched payload against whatever window the sampler reports.
+const FPS_HISTORY_DEFAULT_WINDOW_MS = 60 * 60 * 1000
+const FPS_HISTORY_MIN_WINDOW_MS = 5 * 60 * 1000
+const FPS_HISTORY_MAX_WINDOW_MS = 1440 * 60 * 1000
+const FPS_SAMPLE_NOMINAL_MS = 5_000 // sampler cadence — bounds the retained sample count
+
+function resolveFpsWindowMs(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return FPS_HISTORY_DEFAULT_WINDOW_MS
+  }
+  return Math.min(Math.max(raw, FPS_HISTORY_MIN_WINDOW_MS), FPS_HISTORY_MAX_WINDOW_MS)
+}
 
 // ONE combined snapshot request (metrics + players + fps history) per tick via
 // /api/server-snapshot — no separate metrics/roster polls, no runtime-adjustable
@@ -96,10 +106,11 @@ function clearServerStorage() {
   })
 }
 
-function trimFpsHistory(history: FpsSample[], now = Date.now()) {
+function trimFpsHistory(history: FpsSample[], windowMs: number, now = Date.now()) {
+  const maxSamples = Math.ceil(windowMs / FPS_SAMPLE_NOMINAL_MS) + 1
   return history
-    .filter((sample) => Number.isFinite(sample.timestamp) && Number.isFinite(sample.fps) && now - sample.timestamp <= FPS_HISTORY_WINDOW_MS)
-    .slice(-FPS_HISTORY_MAX_SAMPLES)
+    .filter((sample) => Number.isFinite(sample.timestamp) && Number.isFinite(sample.fps) && now - sample.timestamp <= windowMs)
+    .slice(-maxSamples)
 }
 
 function createLogId() {
@@ -131,6 +142,7 @@ interface ServerContextType {
   serverMetrics: ServerMetrics | null
   setServerMetrics: (metrics: ServerMetrics | null) => void
   fpsHistory: FpsSample[]
+  fpsWindowMs: number
   settings: Record<string, unknown> | null
   setSettings: (settings: Record<string, unknown> | null) => void
   fetchAllData: () => Promise<void>
@@ -147,7 +159,7 @@ interface ServerContextType {
 interface SnapshotPayload {
   metrics?: ServerMetrics
   players?: unknown
-  fpsHistory?: { samples?: FpsSample[] }
+  fpsHistory?: { samples?: FpsSample[]; windowMs?: number }
   error?: string
 }
 
@@ -171,6 +183,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const [serverInfo, setServerInfoState] = useState<ServerInfo | null>(null)
   const [serverMetrics, setServerMetricsState] = useState<ServerMetrics | null>(null)
   const [fpsHistory, setFpsHistoryState] = useState<FpsSample[]>([])
+  const [fpsWindowMs, setFpsWindowMs] = useState<number>(FPS_HISTORY_DEFAULT_WINDOW_MS)
   const [settings, setSettingsState] = useState<Record<string, unknown> | null>(null)
   const [bannedPlayers, setBannedPlayersState] = useState<BannedPlayer[]>([])
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -432,7 +445,9 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         setPlayers(payload.players as Player[]) // setPlayers normalizes any payload shape
       }
       if (payload.fpsHistory && Array.isArray(payload.fpsHistory.samples)) {
-        setFpsHistoryState(trimFpsHistory(payload.fpsHistory.samples))
+        const windowMs = resolveFpsWindowMs(payload.fpsHistory.windowMs)
+        setFpsWindowMs(windowMs)
+        setFpsHistoryState(trimFpsHistory(payload.fpsHistory.samples, windowMs))
       }
 
       addLog({
@@ -556,6 +571,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     serverMetrics,
     setServerMetrics,
     fpsHistory,
+    fpsWindowMs,
     settings,
     setSettings,
     fetchAllData,
@@ -583,6 +599,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     serverMetrics,
     setServerMetrics,
     fpsHistory,
+    fpsWindowMs,
     settings,
     setSettings,
     fetchAllData,

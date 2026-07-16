@@ -15,7 +15,7 @@ export function demoMetrics() {
 }
 
 export function demoFpsHistory() {
-  return { samples: getDemoFpsHistory() }
+  return { samples: getDemoFpsHistory(), windowMs: 60 * 60 * 1000 }
 }
 
 export function demoPalworldResponse(endpoint: string, method: string, tier: AccessTier) {

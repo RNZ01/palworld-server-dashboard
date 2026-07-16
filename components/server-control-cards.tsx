@@ -29,7 +29,8 @@ import {
   SearchIcon
 } from 'lucide-react'
 
-const FPS_HISTORY_WINDOW_MS = 1 * 60 * 60 * 1000 // owner 2026-07-13: 1h (was 4h) — keep in sync with lib/server-context.tsx
+// The visible window is the sampler's (FPS_WINDOW_MINUTES), delivered per-snapshot
+// as `windowMs` and passed into the chart as a prop — no hardcoded window here.
 // History comes from the server-side sampler (5s cadence). A hole >30s in the
 // ring means the server (or sampler) was actually down — render it as a GAP,
 // never a fake bridging line across time nobody sampled.
@@ -37,7 +38,7 @@ const FPS_GAP_BREAK_MS = 30_000
 const FPS_SAMPLE_NOMINAL_MS = 5_000 // sampler cadence — one sample ≈ 5s of wall time
 // Owner-ordered health tiles (2026-07-14), thresholds per the watch-signal doctrine:
 // median sliding off baseline = structural sag; longest continuous <45 stretch
-// growing past ~60-90s = dips becoming valleys; >10% of the hour under 30 = budget blown.
+// growing past ~60-90s = dips becoming valleys; >10% of the window under 30 = budget blown.
 const FPS_DIP_THRESHOLD = 45
 
 export function PanelSection({
@@ -581,9 +582,32 @@ function formatAxisAge(ms: number) {
   return `-${Number.isInteger(hours) ? hours.toFixed(0) : hours.toFixed(1)}h`
 }
 
+// Badge text for the history window — "1 Hour History" at the 60min default,
+// widening/narrowing with the sampler's FPS_WINDOW_MINUTES.
+function formatWindowLabel(ms: number) {
+  const minutes = Math.round(ms / 60_000)
+  if (minutes < 60) return `${minutes} Min History`
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60
+    return `${hours} Hour${hours === 1 ? '' : 's'} History`
+  }
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m History`
+}
+
+// Human noun for the window inside prose tooltips — "hour" at the 60min default,
+// e.g. "the last hour" / "the last 2 hours" / "the last 90 minutes".
+function formatWindowPhrase(ms: number) {
+  const minutes = Math.round(ms / 60_000)
+  if (minutes === 60) return 'hour'
+  if (minutes < 60) return `${minutes} minutes`
+  if (minutes % 60 === 0) return `${minutes / 60} hours`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
 // ── General health verdict (owner order 2026-07-14) ─────────────────────────
 // One pill, one color, beside the live FPS. Composite 0-100 score: a weighted
-// blend of five signals (structural hour-median heaviest, a 10-min median for
+// blend of five signals (structural window-median heaviest, a 10-min median for
 // recency), then VETO CAPS — any single critical signal alone clamps the
 // verdict ("one bad metric can mean bad"), while several mildly-soft signals
 // drag the blend down together ("enough low-ish metrics also mean bad").
@@ -597,7 +621,7 @@ const HEALTH_MIN_SAMPLES = 60 // ~5 min of ring data before a verdict is rendere
 const HEALTH_FPS_ANCHORS: Array<[number, number]> = [
   [0, 0], [20, 10], [30, 25], [35, 40], [40, 50], [45, 60], [50, 75], [55, 90], [60, 100],
 ]
-// % of hour under 30fps -> score
+// % of window under 30fps -> score
 const HEALTH_BUDGET_ANCHORS: Array<[number, number]> = [
   [0, 100], [2, 90], [5, 75], [10, 55], [15, 35], [25, 15], [40, 0],
 ]
@@ -627,10 +651,10 @@ function medianOf(values: number[]) {
 
 interface FpsHealthInput {
   currentFps: number | null
-  hourMedian: number | null
+  windowMedian: number | null
   recentMedian: number | null
   lastMinuteMedian: number | null
-  hourAvg: number | null
+  windowAvg: number | null
   under30Pct: number | null
   longestDipMs: number | null
   sampleCount: number
@@ -655,19 +679,19 @@ function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
   }
   if (
     input.sampleCount < HEALTH_MIN_SAMPLES ||
-    input.hourMedian == null ||
-    input.hourAvg == null ||
+    input.windowMedian == null ||
+    input.windowAvg == null ||
     input.under30Pct == null ||
     input.longestDipMs == null
   ) {
     return { score: null, label: 'Calibrating', colorClass: muted, detail: `Collecting ring data (${input.sampleCount}/${HEALTH_MIN_SAMPLES} samples) — verdict after ~5 minutes.` }
   }
 
-  const recent = input.recentMedian ?? input.hourMedian
+  const recent = input.recentMedian ?? input.windowMedian
   const components = {
-    median: rampScore(HEALTH_FPS_ANCHORS, input.hourMedian),
+    median: rampScore(HEALTH_FPS_ANCHORS, input.windowMedian),
     recent: rampScore(HEALTH_FPS_ANCHORS, recent),
-    avg: rampScore(HEALTH_FPS_ANCHORS, input.hourAvg),
+    avg: rampScore(HEALTH_FPS_ANCHORS, input.windowAvg),
     budget: rampScore(HEALTH_BUDGET_ANCHORS, input.under30Pct),
     dip: rampScore(HEALTH_DIP_ANCHORS, input.longestDipMs),
   }
@@ -686,8 +710,8 @@ function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
     ['10-min median < 25', 25, recent < 25],
     ['10-min median < 30', 35, recent < 30],
     ['10-min median < 45', 65, recent < 45],
-    ['hour median < 30', 30, input.hourMedian < 30],
-    ['hour median < 45', 60, input.hourMedian < 45],
+    ['window median < 30', 30, input.windowMedian < 30],
+    ['window median < 45', 60, input.windowMedian < 45],
     ['under-30 budget > 25%', 30, input.under30Pct > 25],
     ['under-30 budget > 10%', 60, input.under30Pct > 10],
     ['longest dip > 3m', 40, input.longestDipMs > 180_000],
@@ -708,9 +732,9 @@ function computeFpsHealth(input: FpsHealthInput): FpsHealthVerdict {
     : 'none'
   const detail =
     `Health ${Math.round(score)}/100 — ` +
-    `hour median ${input.hourMedian.toFixed(1)} (${Math.round(components.median)}), ` +
+    `window median ${input.windowMedian.toFixed(1)} (${Math.round(components.median)}), ` +
     `10-min median ${recent.toFixed(1)} (${Math.round(components.recent)}), ` +
-    `avg ${input.hourAvg.toFixed(1)} (${Math.round(components.avg)}), ` +
+    `avg ${input.windowAvg.toFixed(1)} (${Math.round(components.avg)}), ` +
     `under-30 ${input.under30Pct.toFixed(1)}% (${Math.round(components.budget)}), ` +
     `longest <45 ${formatDipDuration(input.longestDipMs)} (${Math.round(components.dip)}). ` +
     `Limiting: ${limiting}.`
@@ -748,11 +772,14 @@ function FpsHistoryGraph({
   samples,
   currentFps,
   pollIntervalMs,
+  windowMs,
 }: {
   samples: { timestamp: number; fps: number }[]
   currentFps: number | null
   pollIntervalMs: number
+  windowMs: number
 }) {
+  const windowPhrase = formatWindowPhrase(windowMs)
   // Measure the chart area so the SVG viewBox maps 1:1 to CSS pixels —
   // no letterboxing/stretching at any container width.
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null)
@@ -791,7 +818,7 @@ function FpsHistoryGraph({
   const currentFpsColorClass = getFpsTextColorClass(currentFps)
 
   const now = Date.now()
-  const cutoffTimestamp = now - FPS_HISTORY_WINDOW_MS
+  const cutoffTimestamp = now - windowMs
   const recentSamples = samples.filter((sample) => Number.isFinite(sample.timestamp) && sample.timestamp >= cutoffTimestamp)
   const chartSamples = recentSamples.length > 0
     ? recentSamples
@@ -822,7 +849,7 @@ function FpsHistoryGraph({
   )
 
   // Health-tile stats (owner order 2026-07-14) — the three watch signals,
-  // computed from the same 1h server-side ring the chart renders.
+  // computed from the same server-side ring the chart renders.
   const medianFps = medianOf(fpsValues)
 
   // Longest continuous stretch below FPS_DIP_THRESHOLD, gap-aware: a dip
@@ -858,7 +885,7 @@ function FpsHistoryGraph({
     const recentFps = orderedSamples
       .filter((sample) => sample.timestamp >= cutoff)
       .map((sample) => sample.fps)
-    // Need at least ~1 min of recent data, else fall back to the hour median.
+    // Need at least ~1 min of recent data, else fall back to the window median.
     return recentFps.length >= 12 ? medianOf(recentFps) : null
   })()
 
@@ -872,10 +899,10 @@ function FpsHistoryGraph({
 
   const health = computeFpsHealth({
     currentFps,
-    hourMedian: medianFps,
+    windowMedian: medianFps,
     recentMedian: recentMedianFps,
     lastMinuteMedian: lastMinuteMedianFps,
-    hourAvg: avgFps,
+    windowAvg: avgFps,
     under30Pct,
     longestDipMs,
     sampleCount: orderedSamples.length,
@@ -892,13 +919,13 @@ function FpsHistoryGraph({
     }
 
     const { width, height } = chartSize
-    // Plot against the FIXED window [now-FPS_HISTORY_WINDOW_MS, now] so the line sits at its
+    // Plot against the FIXED window [now-windowMs, now] so the line sits at its
     // true temporal position (right edge = now); the chart shows the real axis even
     // before the buffer fills, instead of stretching whatever data exists to full width.
     const yPadding = height * 0.06
 
     const toPoint = (sample: { timestamp: number; fps: number }) => {
-      const x = ((sample.timestamp - cutoffTimestamp) / FPS_HISTORY_WINDOW_MS) * width
+      const x = ((sample.timestamp - cutoffTimestamp) / windowMs) * width
       const normalizedY = (sample.fps - axisMin) / axisRange
       const y = height - normalizedY * height
       return {
@@ -922,7 +949,7 @@ function FpsHistoryGraph({
     segments.push(current)
 
     return segments
-  }, [axisMin, axisRange, chartSize, orderedSamples, cutoffTimestamp])
+  }, [axisMin, axisRange, chartSize, orderedSamples, cutoffTimestamp, windowMs])
 
   return (
     <div className="space-y-4">
@@ -957,7 +984,7 @@ function FpsHistoryGraph({
             Refresh · every {Math.floor(pollIntervalMs / 1000)}s
           </span>
           <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-[0.2em]">
-            1 Hour History
+            {formatWindowLabel(windowMs)}
           </Badge>
         </div>
       </div>
@@ -1050,7 +1077,7 @@ function FpsHistoryGraph({
 
         <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
           {Array.from({ length: 5 }, (_, i) => (
-            <span key={i}>{i === 4 ? 'Now' : formatAxisAge((FPS_HISTORY_WINDOW_MS * (4 - i)) / 4)}</span>
+            <span key={i}>{i === 4 ? 'Now' : formatAxisAge((windowMs * (4 - i)) / 4)}</span>
           ))}
         </div>
       </div>
@@ -1085,7 +1112,7 @@ function FpsHistoryGraph({
         </div>
         <div
           className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2"
-          title="Longest continuous stretch below 45 FPS this hour (gap-aware). ~30s bursts are normal sim spikes; 60-90s+ valleys mean trouble."
+          title={`Longest continuous stretch below 45 FPS in the last ${windowPhrase} (gap-aware). ~30s bursts are normal sim spikes; 60-90s+ valleys mean trouble.`}
         >
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Longest &lt;45</div>
           <div className={cn('mt-1 font-mono text-sm', getDipDurationColorClass(longestDipMs))}>
@@ -1094,7 +1121,7 @@ function FpsHistoryGraph({
         </div>
         <div
           className="rounded-lg border border-border/50 bg-secondary/35 px-3 py-2"
-          title="Share of the last hour spent below 30 FPS (the burst budget). Past ~10% players feel it."
+          title={`Share of the last ${windowPhrase} spent below 30 FPS (the burst budget). Past ~10% players feel it.`}
         >
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Under 30</div>
           <div className={cn('mt-1 font-mono text-sm', getUnder30BudgetColorClass(under30Pct))}>
@@ -1118,7 +1145,7 @@ function MetricTile({ label, value }: { label: string; value: string }) {
 export function MetricsCard() {
   // Player count sources from the roster (players.length) — the same truth the
   // roster panel renders — NOT metrics.currentplayernum (owner order 2026-07-10).
-  const { serverMetrics, fpsHistory, players, snapshotPollIntervalMs } = useServer()
+  const { serverMetrics, fpsHistory, players, snapshotPollIntervalMs, fpsWindowMs } = useServer()
 
   const uptime = serverMetrics
     ? (() => {
@@ -1140,6 +1167,7 @@ export function MetricsCard() {
         samples={fpsHistory}
         currentFps={serverMetrics?.serverfps ?? null}
         pollIntervalMs={snapshotPollIntervalMs}
+        windowMs={fpsWindowMs}
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
