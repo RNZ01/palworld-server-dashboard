@@ -9,6 +9,7 @@ import { ChatPanel } from '@/components/chat-panel'
 import { HUDCornerFrame } from '@/components/hud-corner-frame'
 import { LiveMap } from '@/components/live-map'
 import { StatusBar } from '@/components/status-bar'
+import { WorldPanels } from '@/components/world-panels'
 import {
   AnnouncementCard,
   ServerManagementCard,
@@ -96,6 +97,10 @@ export function Dashboard() {
                           <SettingsCard />
                           <ServerManagementCard />
                           <AnnouncementCard />
+                        </div>
+
+                        <div className="mt-4">
+                          <WorldPanels />
                         </div>
                       </div>
                     </ScrollArea>

@@ -8,7 +8,7 @@ import {
   buildPalworldProxyHeaders,
 } from '@/lib/palworld'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SendIcon, UserIcon, BanIcon } from 'lucide-react'
@@ -22,7 +22,7 @@ import {
 import { usePlayerActions } from '@/components/use-player-actions'
 import type { Player } from '@/lib/types'
 
-// Poll cadence for the live chat/presence feed (mirrors palcon's terminal tail).
+// Poll cadence for the live chat/presence feed.
 const CHAT_POLL_INTERVAL_MS = 4 * 1000
 
 // Announcements sent from the web are prefixed with a configurable label so
@@ -39,6 +39,12 @@ type ChatEvent = {
 
 function eventKey(event: ChatEvent, index: number) {
   return `${event.ts}|${event.type}|${event.name}|${index}`
+}
+
+// Mirrors the server echo ring's timestamp shape (lib/announce-echo.ts formatTs).
+function formatLocalTs(date: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`
 }
 
 function ChatRow({
@@ -128,6 +134,10 @@ export function ChatPanel() {
   const { config, players } = useServer()
   const { setConfirmAction, confirmDialog } = usePlayerActions()
   const [events, setEvents] = useState<ChatEvent[]>([])
+  // Optimistic self-echo: a sent message appears in the feed INSTANTLY instead of
+  // waiting up to one poll interval for the server echo ring to surface it. Each entry is dropped as soon as a matching polled event arrives
+  // (count-based match on name|text so rapid duplicates survive), or after a 60s TTL.
+  const [localEchoes, setLocalEchoes] = useState<Array<ChatEvent & { at: number }>>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
 
@@ -140,6 +150,7 @@ export function ChatPanel() {
   useEffect(() => {
     if (!config) {
       setEvents([])
+      setLocalEchoes([])
       return
     }
 
@@ -154,7 +165,31 @@ export function ChatPanel() {
         if (!response.ok) return
         const data = (await response.json()) as { events?: ChatEvent[] }
         if (!cancelled && Array.isArray(data.events)) {
-          setEvents(data.events.filter((e: ChatEvent) => e.type === 'chat'))
+          const chat = data.events.filter((e: ChatEvent) => e.type === 'chat')
+          // Prune local echoes the server now knows about (one polled occurrence
+          // consumes one local copy), plus anything past the TTL.
+          setLocalEchoes((prev) => {
+            if (prev.length === 0) return prev
+            const now = Date.now()
+            const counts = new Map<string, number>()
+            for (const e of chat) {
+              const k = `${e.name}|${e.text}`
+              counts.set(k, (counts.get(k) ?? 0) + 1)
+            }
+            const kept: typeof prev = []
+            for (const le of prev) {
+              if (now - le.at > 60_000) continue
+              const k = `${le.name}|${le.text}`
+              const n = counts.get(k) ?? 0
+              if (n > 0) {
+                counts.set(k, n - 1)
+                continue
+              }
+              kept.push(le)
+            }
+            return kept.length === prev.length ? prev : kept
+          })
+          setEvents(chat)
         }
       } catch {
         // Transient network hiccup — keep the last feed we had.
@@ -170,13 +205,16 @@ export function ChatPanel() {
     }
   }, [config])
 
+  // Rendered feed = server truth + not-yet-confirmed local echoes (always newest).
+  const feed = localEchoes.length === 0 ? events : [...events, ...localEchoes]
+
   // Stick to bottom on new events when already at bottom.
   useEffect(() => {
     const el = feedRef.current
     if (el && atBottomRef.current) {
       el.scrollTop = el.scrollHeight
     }
-  }, [events])
+  }, [feed.length])
 
   const handleScroll = useCallback(() => {
     const el = feedRef.current
@@ -193,6 +231,9 @@ export function ChatPanel() {
       const headers = new Headers(buildPalworldProxyHeaders(config))
       headers.set('Content-Type', 'application/json')
 
+      // POST /api/chat forwards to the game's /announce AND records a
+      // server-side echo, so the message appears in this feed (and every other
+      // open panel's) on the next poll — announces are invisible in the journal.
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers,
@@ -202,7 +243,12 @@ export function ChatPanel() {
       if (!response.ok) throw new Error('send failed')
 
       setInput('')
-      // Next poll surfaces the echoed message; make sure we're pinned to see it.
+      // Instant self-echo: show the message NOW; the server echo replaces it on the
+      // next poll (see the prune in the poll handler).
+      setLocalEchoes((prev) => [
+        ...prev,
+        { type: 'chat', ts: formatLocalTs(new Date()), name: CHAT_SENDER_LABEL, text, at: Date.now() },
+      ])
       atBottomRef.current = true
     } catch {
       toast.error('Failed to send message')
@@ -215,6 +261,32 @@ export function ChatPanel() {
     (event: React.FormEvent) => {
       event.preventDefault()
       void sendMessage()
+    },
+    [sendMessage],
+  )
+
+  // Auto-grow the composer: the box wraps at viewport width and expands upward (the
+  // feed above is flex-1, so a taller composer pushes its top edge up) until a
+  // ~7-line cap, then scrolls internally. JS-driven so the behavior is identical on
+  // browsers without CSS field-sizing support. Messages stay single-line
+  // semantically — Enter sends, pasted newlines are flattened — so the in-game
+  // rendering is unchanged.
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  const COMPOSER_MAX_PX = 160
+  useEffect(() => {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_PX)}px`
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_PX ? 'auto' : 'hidden'
+  }, [input])
+
+  const handleComposerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === 'Enter') {
+        event.preventDefault() // never insert a newline; plain Enter sends
+        if (!event.shiftKey) void sendMessage()
+      }
     },
     [sendMessage],
   )
@@ -234,7 +306,7 @@ export function ChatPanel() {
         <div className="relative z-10 flex items-center gap-2 border-b border-border/50 px-4 py-2">
           <div className="status-dot h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]" />
           <span className="text-[10px] uppercase tracking-widest text-foreground/80">Live Game Chat</span>
-          <span className="ml-auto font-mono text-[10px] text-foreground/40">{events.length}</span>
+          <span className="ml-auto font-mono text-[10px] text-foreground/40">{feed.length}</span>
         </div>
 
         <div className="relative z-10 min-h-0 flex-1">
@@ -243,12 +315,12 @@ export function ChatPanel() {
             onScroll={handleScroll}
             className="scrollbar-hidden absolute inset-0 overflow-y-auto font-mono text-xs"
           >
-            {events.length === 0 ? (
+            {feed.length === 0 ? (
               <div className="flex h-full items-center justify-center px-4 py-8 text-center font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
                 No chat yet. Player messages will appear here.
               </div>
             ) : (
-              events.map((event, index) => (
+              feed.map((event, index) => (
               <ChatRow
                 key={eventKey(event, index)}
                 event={event}
@@ -261,15 +333,19 @@ export function ChatPanel() {
         </div>
       </div>
 
-      {/* Custom message sender — pinned at the bottom, mirrors palcon identity. */}
-      <form onSubmit={handleSubmit} className="flex shrink-0 items-center gap-2">
-        <Input
+      {/* Custom message sender — pinned at the bottom. Auto-growing composer:
+          wraps at width, expands upward to a cap (see effect above). */}
+      <form onSubmit={handleSubmit} className="flex shrink-0 items-end gap-2">
+        <Textarea
+          ref={composerRef}
+          rows={1}
           value={input}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => setInput(event.target.value.replace(/\r?\n/g, ' '))}
+          onKeyDown={handleComposerKeyDown}
           placeholder={`Message as ${CHAT_SENDER_LABEL}…`}
           disabled={sending}
           aria-label="Chat message"
-          className="flex-1 font-mono text-xs"
+          className="min-h-9 flex-1 resize-none rounded-md font-mono text-xs leading-relaxed md:text-xs"
         />
         <Button
           type="submit"

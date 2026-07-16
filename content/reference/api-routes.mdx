@@ -12,6 +12,8 @@ The dashboard uses internal Next.js API routes. These are implementation details
 | `/api/palworld/[...path]` | Authenticated proxy to Palworld REST endpoints. |
 | `/api/server-snapshot` | Combined metrics, players, and FPS history request. |
 | `/api/fps-history` | Reads the server-side FPS ring. |
+| `/api/world` | Admin-only read of save-derived world and parser status data. |
+| `/api/world/refresh` | Admin-only creation of the save-parser request flag. |
 | `/api/chat` | Reads recent chat/join/leave events from journald. |
 | `/api/server-restart` | Writes optional host restart request/cancel files. |
 | `/api/panel-auth/admin-password` | Admin password management endpoint. |
@@ -25,3 +27,5 @@ Protected routes expect the panel password in the internal dashboard header, not
 ## Mod tier enforcement
 
 The Palworld proxy checks the resolved password tier on each request. Mod users are limited to an exact method/path allowlist.
+
+The world routes independently re-check the submitted panel password and require the admin tier. A moderator receives `403` before any world file is returned or refresh file is written.

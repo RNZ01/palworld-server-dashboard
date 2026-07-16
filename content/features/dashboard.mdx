@@ -32,6 +32,7 @@ The admin dashboard combines operational panels for:
 - live console/chat area
 - world settings
 - FPS and performance metrics
+- save-derived roster and guild tables for admins
 
 ## Data refresh
 
@@ -42,6 +43,8 @@ NEXT_PUBLIC_SNAPSHOT_POLL_SECONDS=15
 ```
 
 Allowed range is 5 to 120 seconds.
+
+The admin world view piggybacks on the same browser tick, but reads only the local `/api/world` snapshot. Operators can request a parser refresh from the world status bar; the panel then waits for a changed parse timestamp.
 
 ## Local browser state
 

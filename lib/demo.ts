@@ -16,9 +16,9 @@ export const demoServerInfo: ServerInfo = {
 }
 
 export const demoPlayers: Player[] = [
-  { name: 'LamballPilot', accountName: 'lamball', playerId: '101', userId: 'steam_demo_101', ip: '127.0.0.1', ping: 28, location_x: 1450, location_y: -820, level: 37 },
-  { name: 'CattivaOps', accountName: 'cattiva', playerId: '102', userId: 'steam_demo_102', ip: '127.0.0.1', ping: 44, location_x: -360, location_y: 980, level: 22 },
-  { name: 'AnubisAdmin', accountName: 'anubis', playerId: '103', userId: 'steam_demo_103', ip: '127.0.0.1', ping: 19, location_x: 720, location_y: 260, level: 50 },
+  { name: 'LamballLarry', accountName: 'lamball', playerId: '00000065000000000000000000000000', userId: 'steam_demo_101', ip: '127.0.0.1', ping: 28, location_x: 1450, location_y: -820, level: 42 },
+  { name: 'CattivaCore', accountName: 'cattiva', playerId: '00000066000000000000000000000000', userId: 'steam_demo_102', ip: '127.0.0.1', ping: 44, location_x: -360, location_y: 980, level: 31 },
+  { name: 'SparkitOps', accountName: 'sparkit', playerId: '00000067000000000000000000000000', userId: 'steam_demo_103', ip: '127.0.0.1', ping: 19, location_x: 720, location_y: 260, level: 55 },
 ]
 
 export const demoMetrics: ServerMetrics = {

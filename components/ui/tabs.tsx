@@ -1,1 +1,1 @@
-export { Tabs, TabsList, TabsTrigger } from '@/components/tabs'
+export { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'

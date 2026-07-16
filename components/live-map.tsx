@@ -12,8 +12,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WorldDataStatus } from '@/components/world-data-status'
 import { buildPalworldProxyHeaders, buildPalworldProxyPath, getPlayerKey, normalizePlayersPayload } from '@/lib/palworld'
 import { useServer } from '@/lib/server-context'
+import { useWorld } from '@/lib/use-world'
+import { formatRelativeTime, formatWorldDateTime } from '@/lib/world-time'
 import type { Player } from '@/lib/types'
 import points from '@/lib/map-points.json'
 
@@ -29,7 +32,7 @@ const MIN_ZOOM = 0
 const MAX_ZOOM = 10
 const MAP_SIZE_FALLBACK = 920
 const MAP_BASIS = 4096 // keep the transformed layer under common GPU texture limits; 8192+ zoom corrupts Chrome compositing
-const REFRESH_INTERVAL_MS = 5000 // owner 2026-07-13: sane default (1s rescinded — REST /players is game-thread-synchronized on PalServer, ~1.2pp tick cost per req/s, A/B-measured)
+const REFRESH_INTERVAL_MS = 5000 // REST /players is game-thread-synchronized on PalServer (~1.2pp tick cost per req/s, A/B-measured) — keep this modest
 
 interface PlayerMarkerGroup {
   id: string
@@ -70,6 +73,16 @@ function toMapPosition([worldX, worldY]: [number, number], bounds: MapBounds): [
   return [x, y]
 }
 
+// Save-derived positions are always UE world-space. Unlike live/static map
+// points, they must never pass through toMapPosition's legacy ±256 map-space
+// shortcut: legitimate save coordinates can sit inside that strip.
+function projectWorldSpace([worldX, worldY]: [number, number], bounds: MapBounds): [number, number] {
+  const x = -256 + (256 * (worldX - bounds[2])) / (bounds[0] - bounds[2])
+  const y = (256 * (worldY - bounds[3])) / (bounds[1] - bounds[3])
+
+  return [x, y]
+}
+
 function fromMapPosition([mapX, mapY]: [number, number], bounds: MapBounds): [string, string] {
   const worldX = ((mapX + 256) * (bounds[0] - bounds[2])) / 256 + bounds[2]
   const worldY = (mapY * (bounds[1] - bounds[3])) / 256 + bounds[3]
@@ -80,6 +93,15 @@ function fromMapPosition([mapX, mapY]: [number, number], bounds: MapBounds): [st
 function toMapFraction(position: [number, number], bounds: MapBounds) {
   const [mapX, mapY] = toMapPosition(position, bounds)
   return { fx: mapY / 256, fy: -mapX / 256 }
+}
+
+function toWorldSpaceFraction(position: [number, number], bounds: MapBounds) {
+  const [mapX, mapY] = projectWorldSpace(position, bounds)
+  return { fx: mapY / 256, fy: -mapX / 256 }
+}
+
+function isFractionInBounds({ fx, fy }: { fx: number; fy: number }) {
+  return Number.isFinite(fx) && Number.isFinite(fy) && fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1
 }
 
 function toScreenPercent(position: [number, number], bounds: MapBounds) {
@@ -109,10 +131,11 @@ interface LiveMapProps {
 
 export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
   const { config, connectionStatus, players, setPlayers } = useServer()
-  // gmaps-style view: top-left-origin transform, cursor-anchored wheel zoom, edge-clamped pan (owner spec 2026-07-10)
+  const { world } = useWorld()
+  // gmaps-style view: top-left-origin transform, cursor-anchored wheel zoom, edge-clamped pan
   const [view, setView] = useState<{ scale: number; tx: number; ty: number } | null>(null)
   const [mousePosition, setMousePosition] = useState<[string, string]>(['0.00', '0.00'])
-  // Layer toggles persist across reloads (owner order 2026-07-10)
+  // Layer toggles persist across reloads
   const readLayer = (key: string, fallback: boolean) => {
     if (typeof window === 'undefined') return fallback
     const v = localStorage.getItem(`mapLayer.${key}`)
@@ -123,9 +146,13 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
     localStorage.setItem(`mapLayer.${key}`, v ? '1' : '0')
   }
   const [showPlayers, setShowPlayersRaw] = useState(() => readLayer('players', true))
+  const [showBases, setShowBasesRaw] = useState(() => readLayer('bases', true))
+  const [showOfflinePlayers, setShowOfflinePlayersRaw] = useState(() => readLayer('offlinePlayers', true))
   const [showBossTowers, setShowBossTowersRaw] = useState(() => readLayer('bossTowers', false))
   const [showFastTravels, setShowFastTravelsRaw] = useState(() => readLayer('fastTravels', false))
   const setShowPlayers = persistLayer('players', setShowPlayersRaw)
+  const setShowBases = persistLayer('bases', setShowBasesRaw)
+  const setShowOfflinePlayers = persistLayer('offlinePlayers', setShowOfflinePlayersRaw)
   const setShowBossTowers = persistLayer('bossTowers', setShowBossTowersRaw)
   const setShowFastTravels = persistLayer('fastTravels', setShowFastTravelsRaw)
   // Map canvas: main World (default) <-> World Tree sub-map. Persists like the layer toggles.
@@ -181,7 +208,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
         const pv = pendingViewRef.current
         if (!pv) return
         // Gesture frames bypass React entirely: write the transform straight to both
-        // layers on the compositor path ("make sure it's async" — owner 2026-07-10).
+        // layers on the compositor path, keeping gestures fully async.
         const tf = `translate(${pv.tx}px, ${pv.ty}px) scale(${pv.scale})`
         if (mapPlaneRef.current) mapPlaneRef.current.style.transform = tf
         const v0 = layoutViewRef.current
@@ -212,8 +239,8 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
     layoutViewRef.current = view
   }, [view])
 
-  // Screen-space marker math (owner spec: tags render at fixed rez in viewport space,
-  // never scaled — only the map zooms). ov = at-rest layout view; overlayTransform =
+  // Screen-space marker math: tags render at fixed resolution in viewport space,
+  // never scaled — only the map zooms. ov = at-rest layout view; overlayTransform =
   // transient gesture delta so tags track the map between React commits.
   const ov = view ?? {
     scale: fitScale,
@@ -269,6 +296,30 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
     })),
     [activeBounds]
   )
+
+  const onlinePlayerUids = useMemo(
+    () => new Set(players.map((player) => player.playerId.trim().toUpperCase()).filter(Boolean)),
+    [players],
+  )
+
+  const baseMarkers = useMemo(() => {
+    if (!world) return []
+    return world.bases.flatMap((base) => {
+      if (base.x === null || base.y === null) return []
+      const frac = toWorldSpaceFraction([base.x, base.y], activeBounds)
+      return isFractionInBounds(frac) ? [{ base, frac }] : []
+    })
+  }, [activeBounds, world])
+
+  const offlinePlayerMarkers = useMemo(() => {
+    if (!world) return []
+    return world.players.flatMap((player) => {
+      if (player.last_x === null || player.last_y === null) return []
+      if (onlinePlayerUids.has(player.uid.trim().toUpperCase())) return []
+      const frac = toWorldSpaceFraction([player.last_x, player.last_y], activeBounds)
+      return isFractionInBounds(frac) ? [{ player, frac }] : []
+    })
+  }, [activeBounds, onlinePlayerUids, world])
 
   const refreshPlayers = useCallback(async () => {
     if (!config) {
@@ -553,7 +604,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Direct image renderer with live player markers from the `players` API.
+            Live player tracking with save-derived base and offline overlays.
           </p>
         </div>
 
@@ -610,6 +661,20 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
               >
                 Players
               </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={showBases}
+                onCheckedChange={setShowBases}
+                onSelect={(event) => event.preventDefault()}
+              >
+                Bases
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={showOfflinePlayers}
+                onCheckedChange={setShowOfflinePlayers}
+                onSelect={(event) => event.preventDefault()}
+              >
+                Offline Players
+              </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -635,6 +700,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <WorldDataStatus compact />
           <Badge variant="secondary" className="border border-border/60 bg-muted/40 text-foreground hover:bg-muted/50">
             {connectionStatus}
           </Badge>
@@ -647,6 +713,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
             className="border-border/70 bg-background/40 text-foreground hover:bg-muted/60 hover:text-foreground"
             onClick={() => void refreshMap()}
             disabled={isRefreshing || !config}
+            aria-label="Refresh live players"
           >
             <RefreshCwIcon className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
@@ -696,7 +763,7 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
 
         {/* Marker overlay: parallel layer with identical transform — keeps the image
             layer's raster UNTOUCHED by periodic marker updates and zoom counter-scaling
-            (owner-diagnosed repaint storm, 2026-07-10) */}
+            (prevents a repaint storm) */}
         <div
           ref={markerPlaneRef}
           className="pointer-events-none absolute inset-0 will-change-transform"
@@ -733,6 +800,47 @@ export function LiveMap({ activeTab = 'map', onTabChange }: LiveMapProps) {
                 }}
                 draggable={false}
               />
+            ))}
+
+          {showBases &&
+            baseMarkers.map(({ base, frac }) => (
+              <div
+                key={base.id}
+                className="group pointer-events-auto absolute z-20 hover:z-50"
+                style={{
+                  left: `${ov.tx + frac.fx * MAP_BASIS * ov.scale}px`,
+                  top: `${ov.ty + frac.fy * MAP_BASIS * ov.scale}px`,
+                }}
+              >
+                <div className="h-5 w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[4px] border-2 border-amber-200/90 bg-amber-500/75 shadow-[0_0_16px_rgba(245,158,11,0.55)] transition-transform group-hover:scale-125" />
+                <div className="pointer-events-none absolute left-0 top-0 w-max max-w-64 -translate-x-1/2 -translate-y-[calc(100%+16px)] rounded-md border border-amber-400/45 bg-card/95 px-3 py-2 text-xs text-foreground opacity-0 shadow-2xl backdrop-blur transition-opacity group-hover:opacity-100">
+                  <div className="max-w-56 truncate font-semibold">{base.guild || 'Unnamed Guild'}</div>
+                  <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-400">Guild base lvl {base.guild_base_level}</div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">Area {base.area === null ? 'unknown' : base.area.toLocaleString()}</div>
+                </div>
+              </div>
+            ))}
+
+          {showOfflinePlayers &&
+            offlinePlayerMarkers.map(({ player, frac }) => (
+              <div
+                key={player.uid}
+                className="group pointer-events-auto absolute z-20 opacity-60 transition-opacity hover:z-50 hover:opacity-100"
+                style={{
+                  left: `${ov.tx + frac.fx * MAP_BASIS * ov.scale}px`,
+                  top: `${ov.ty + frac.fy * MAP_BASIS * ov.scale}px`,
+                }}
+                title={`${player.nickname || 'Unnamed player'} · level ${player.level} · last seen ${formatWorldDateTime(player.last_seen)}`}
+              >
+                <div className="h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-slate-200/90 bg-slate-500/70 shadow-[0_0_12px_rgba(148,163,184,0.4)]" />
+                <div className="pointer-events-none absolute left-0 top-0 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-full border border-border/60 bg-card/88 px-2 py-0.5 text-xs font-medium text-foreground/85 shadow-lg">
+                  {player.nickname || 'Unnamed player'}
+                </div>
+                <div className="pointer-events-none absolute left-0 top-0 w-max max-w-64 -translate-x-1/2 translate-y-3 rounded-md border border-border/60 bg-card/95 px-3 py-2 text-xs text-foreground opacity-0 shadow-2xl backdrop-blur transition-opacity group-hover:opacity-100">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Level {player.level}</div>
+                  <div className="mt-1">Last seen {formatRelativeTime(player.last_seen)}</div>
+                </div>
+              </div>
             ))}
 
           {showPlayers &&

@@ -26,6 +26,7 @@ const nextConfig = {
   output: 'standalone',
   allowedDevOrigins: getAllowedDevOrigins(),
   turbopack: {
+    root: process.cwd(),
     resolveAlias: {
       'next-mdx-import-source-file': './mdx-components.tsx',
     },

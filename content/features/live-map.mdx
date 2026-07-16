@@ -4,7 +4,7 @@ title: Live Map
 
 # Live Map
 
-The live map visualizes player positions reported by the Palworld REST API.
+The live map combines current player positions from the Palworld REST API with admin-only, save-derived world data.
 
 ## Features
 
@@ -13,12 +13,17 @@ The live map visualizes player positions reported by the Palworld REST API.
 - zoom and pan controls
 - optional fast travel markers
 - optional boss tower markers
+- persisted base and offline-player layers
+- guild base level, area, player level, and last-seen tooltips
+- separate World and World Tree projections with out-of-bounds markers culled
 - dashboard/map tab switching
 
 ## Coordinate source
 
-Player coordinates come from the normalized player payload returned by the server. If the Palworld API returns no position data, players may appear at a default or missing location.
+Online player coordinates come from the normalized live player payload. Base and offline-player coordinates come only from `/api/world`, which reads the parser's local `world.json`; the dashboard never derives those records from the game REST API.
+
+Save coordinates always use the linear Unreal-world-space projection. This is intentionally separate from the legacy map-point shortcut for coordinates in the ±256 range.
 
 ## Privacy considerations
 
-Live location data can be sensitive on active multiplayer servers. Limit dashboard access to trusted operators and use the moderator tier where full visibility is not appropriate.
+Location data can be sensitive on active multiplayer servers. World data, including offline locations, is enforced as admin-only by the server routes and is not available to the moderator tier.

@@ -45,6 +45,63 @@ export interface FpsSample {
   fps: number
 }
 
+export interface WorldPlayer {
+  uid: string
+  nickname: string
+  level: number
+  pal_count: number
+  last_seen: string | null
+  session_started: string | null
+  last_x: number | null
+  last_y: number | null
+}
+
+export interface WorldGuildMember {
+  uid: string
+  nickname: string
+  last_seen: string | null
+}
+
+export interface WorldGuild {
+  id: string
+  name: string
+  base_level: number
+  base_count: number
+  admin_uid: string | null
+  members: WorldGuildMember[]
+}
+
+export interface WorldBase {
+  id: string
+  x: number | null
+  y: number | null
+  area: number | null
+  guild_id: string
+  guild: string
+  guild_base_level: number
+}
+
+export interface WorldData {
+  schema_version: 2
+  world_guid: string
+  parsed_at: string
+  source_saved_at: string
+  duration_s: number
+  bases: WorldBase[]
+  guilds: WorldGuild[]
+  players: WorldPlayer[]
+}
+
+export interface WorldParseStatus {
+  ok: boolean
+  error: string | null
+  finished_at: string
+  duration_s: number | null
+  players: number | null
+  bases: number | null
+  pal_count: number | null
+}
+
 export interface ConsoleLog {
   id: string
   type: 'success' | 'error' | 'info'

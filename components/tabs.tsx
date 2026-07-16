@@ -63,4 +63,4 @@ function TabsContent({
   )
 }
 
-export { Tabs, TabsList, TabsTrigger }
+export { Tabs, TabsList, TabsTrigger, TabsContent }
