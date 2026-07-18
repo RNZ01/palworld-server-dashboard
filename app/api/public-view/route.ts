@@ -21,17 +21,25 @@
 // The panel's real REST admin password is used server-side exactly like the
 // authed proxy: pinned upstream, injected here, never sent to the browser.
 import { Buffer } from 'node:buffer'
+import { createHash, randomBytes } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { DEMO_MODE, demoMetrics, demoPlayers, demoServerInfo } from '@/lib/demo-mode'
 import { normalizePlayersPayload } from '@/lib/palworld'
-import type { PublicPlayer, PublicSnapshot } from '@/lib/types'
+import type { Player, PublicPlayer, PublicSnapshot } from '@/lib/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+function envFlag(value: string | undefined): boolean {
+  return value === 'true' || value === '1'
+}
+
 function isEnabled(): boolean {
-  const flag = process.env.PUBLIC_VIEW_ENABLED
-  return flag === 'true' || flag === '1'
+  return envFlag(process.env.PUBLIC_VIEW_ENABLED)
+}
+
+function anonymizeNames(): boolean {
+  return envFlag(process.env.PUBLIC_VIEW_ANONYMIZE_NAMES)
 }
 
 function cacheTtlMs(): number {
@@ -40,10 +48,25 @@ function cacheTtlMs(): number {
   return seconds * 1000
 }
 
+// PUBLIC_VIEW_ANONYMIZE_NAMES: real names are replaced BEFORE the payload is
+// built, so they never enter the snapshot (or any fronting cache). The tag is
+// a salted hash of the player's id — stable across polls so map markers keep
+// their label, but non-reversible (Steam ids are enumerable, so an unsalted
+// hash could be brute-forced back). The salt is random per process: pseudonyms
+// survive refreshes but intentionally rotate on server restart.
+const anonymizationSalt = randomBytes(16).toString('hex')
+
+function pseudonym(player: Player): string {
+  const identity = player.userId || player.playerId || player.name
+  const tag = createHash('sha256').update(`${anonymizationSalt}:${identity}`).digest('hex').slice(0, 4)
+  return `Player-${tag}`
+}
+
 // Allowlist mappers: every field is picked and coerced explicitly.
 function toPublicPlayers(payload: unknown): PublicPlayer[] {
+  const anonymize = anonymizeNames()
   return normalizePlayersPayload(payload).map((player) => ({
-    name: player.name,
+    name: anonymize ? pseudonym(player) : player.name,
     level: player.level,
     location_x: player.location_x,
     location_y: player.location_y,

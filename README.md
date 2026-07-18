@@ -116,7 +116,7 @@ PUBLIC_VIEW_ENABLED=true
 
 It requires no password and grants none: its only data source is `GET /api/public-view`, which serves an allowlisted snapshot (no player IPs, no Steam/user IDs, no ping, no world GUID, no settings) and never accepts client input. Responses are cached server-side (`PUBLIC_VIEW_CACHE_SECONDS`, default 10s), so public traffic cannot put load on the game server.
 
-Player names and live positions are visible to anyone who can reach the page — enable it only if that is acceptable for your community. The admin panel itself remains protected as before; if you expose only `/view` through your reverse proxy, keep `/`, `/api/palworld`, and the other panel routes restricted.
+Player names and live positions are visible to anyone who can reach the page — enable it only if that is acceptable for your community, or set `PUBLIC_VIEW_ANONYMIZE_NAMES=true` to replace names with stable pseudonyms (`Player-3f2a`) while keeping the map and levels public. The admin panel itself remains protected as before; if you expose only `/view` through your reverse proxy, keep `/`, `/api/palworld`, and the other panel routes restricted.
 
 ## Security Notice
 

@@ -27,6 +27,7 @@ services:
       # Opt-in public read-only status page at /view (no panel password).
       PUBLIC_VIEW_ENABLED: ${PUBLIC_VIEW_ENABLED:-false}
       PUBLIC_VIEW_CACHE_SECONDS: ${PUBLIC_VIEW_CACHE_SECONDS:-10}
+      PUBLIC_VIEW_ANONYMIZE_NAMES: ${PUBLIC_VIEW_ANONYMIZE_NAMES:-false}
     volumes:
       - dashboard-data:/app/data
       - fps-metrics:/metrics:ro

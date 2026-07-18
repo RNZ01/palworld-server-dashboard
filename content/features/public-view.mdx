@@ -41,6 +41,16 @@ Public traffic is decoupled from the game server: the snapshot is cached server-
 
 Player names, levels, and live positions **are** visible to anyone who can reach the page. On servers where that is sensitive, leave the feature disabled or restrict the page at your reverse proxy.
 
+### Anonymizing player names
+
+If you want the map and player list public but not player identities, set:
+
+```env
+PUBLIC_VIEW_ANONYMIZE_NAMES=true
+```
+
+Real names are then replaced server-side with stable pseudonyms like `Player-3f2a` before they enter the public payload — the real name never leaves the dashboard. The pseudonym is a salted, non-reversible hash of the player's internal id: a given player keeps the same label across refreshes (map markers stay readable), and all pseudonyms rotate when the dashboard restarts. Levels and positions remain visible.
+
 ## Exposing only the public page
 
 The rest of the dashboard remains an admin tool and should stay protected as described in the [security guide](/docs/security). If you want to publish only the status page, allow just these paths through your reverse proxy:
