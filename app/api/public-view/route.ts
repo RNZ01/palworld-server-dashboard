@@ -124,7 +124,7 @@ async function buildSnapshot(): Promise<PublicSnapshot> {
     process.env.PALWORLD_ADMIN_PASSWORD ?? process.env.PALWORLD_REAL_ADMIN_PASSWORD ?? ''
 
   if (!gameAdminPassword) {
-    throw new Error('missing PALWORLD_ADMIN_PASSWORD')
+    throw new Error('missing PALWORLD_ADMIN_PASSWORD (or PALWORLD_REAL_ADMIN_PASSWORD)')
   }
 
   const [info, metrics, players] = await Promise.all([
