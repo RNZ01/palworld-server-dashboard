@@ -51,19 +51,13 @@ npm run start
 
 The build also creates the Pagefind search index used by the documentation.
 
-## Bare-metal FPS sampler
+## FPS sampler
 
-Docker Compose starts the FPS sampler automatically. In a source install, run it separately if you want rolling FPS history while nobody has the dashboard open.
-
-Use the example unit:
-
-```text
-scripts/fps-sampler/palworld-fps-sampler.service.example
-```
-
-The panel and sampler must point at the same history file:
+The FPS sampler runs inside the dashboard server itself — there is no separate process to start. Enable it by setting `PALWORLD_FPS_SAMPLER=true` so rolling FPS history is collected even while nobody has the dashboard open:
 
 ```env
-PALWORLD_FPS_HISTORY_FILE=/run/palworld-metrics/fps-history.json
-FPS_HISTORY_FILE=/run/palworld-metrics/fps-history.json
+PALWORLD_FPS_SAMPLER=true
+PALWORLD_FPS_HISTORY_FILE=./data/fps-history.json
 ```
+
+The sampler reuses the dashboard's `PALWORLD_REST_URL` and `PALWORLD_ADMIN_PASSWORD`. A single `PALWORLD_FPS_HISTORY_FILE` variable is both written by the sampler and read by the panel; it defaults to `./data/fps-history.json`. Make sure that directory is writable by the dashboard process.

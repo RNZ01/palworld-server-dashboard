@@ -25,8 +25,14 @@ ENV DEMO_MODE=0
 
 WORKDIR /app
 
+# /app/data holds the panel credential store and the FPS history ring. Baking
+# it into the image owned by the app user makes it writable on every engine:
+# Docker copies this ownership into fresh named volumes mounted here, and
+# volumeless runs get a writable directory instead of a root-owned /app.
 RUN groupadd --system --gid 1001 nodejs \
-  && useradd --system --uid 1001 --gid nodejs nextjs
+  && useradd --system --uid 1001 --gid nodejs nextjs \
+  && mkdir -p /app/data \
+  && chown nextjs:nodejs /app/data
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

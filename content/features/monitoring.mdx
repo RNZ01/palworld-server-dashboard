@@ -32,6 +32,8 @@ The FPS panel summarizes performance using several signals instead of a single p
 
 The health verdict avoids pretending there is certainty when the sampler has no data, stale data, or too little data.
 
+The sampler runs inside the dashboard process and is enabled with `PALWORLD_FPS_SAMPLER=true`. When it is not enabled, nothing maintains the history ring and these signals stay empty.
+
 ## Snapshot polling
 
 Metrics and players are refreshed through `/api/server-snapshot`. This reduces request count and keeps panels in sync.
@@ -43,5 +45,5 @@ A blank or stale metric usually means:
 - the Palworld REST API is unavailable
 - the server is restarting
 - credentials are wrong
-- the FPS sampler is not running
+- the in-process FPS sampler is not enabled (no `[fps-sampler]` activity in the dashboard logs)
 - the history file is unreadable

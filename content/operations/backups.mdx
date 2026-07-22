@@ -24,11 +24,7 @@ PANEL_AUTH_FILE=./data/panel-auth.json
 
 ## FPS history
 
-FPS history is operational telemetry, not critical state. Docker Compose stores it in:
-
-```text
-palworld-fps-metrics
-```
+FPS history is operational telemetry, not critical state. The dashboard writes the ring file to `PALWORLD_FPS_HISTORY_FILE`, which defaults to `./data/fps-history.json` (`/app/data/fps-history.json` in the container). Under Docker Compose that lives in the `palworld-dashboard-data` volume alongside `panel-auth.json`, so the same backup covers both.
 
 You can back it up, but it is safe to recreate.
 

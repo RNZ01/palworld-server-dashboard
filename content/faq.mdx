@@ -22,7 +22,7 @@ Inside a container, `127.0.0.1` is the container. Use `host.docker.internal` for
 
 ## Why is FPS history empty after opening the dashboard?
 
-The graph depends on the server-side sampler. Start the sampler and make sure the dashboard reads the same history file the sampler writes.
+The graph depends on the server-side sampler, which runs inside the dashboard. Set `PALWORLD_FPS_SAMPLER=true` on the dashboard and restart. If it is still empty, check the dashboard logs for `[fps-sampler]` lines and confirm `PALWORLD_FPS_HISTORY_FILE` points somewhere writable. Note that `DEMO_MODE=1` disables the sampler.
 
 ## Does the dashboard store world saves?
 

@@ -41,7 +41,7 @@ Sensitive data in the dashboard screenshot below has been blurred.
 - Live map with player positions and optional map markers
 - Optional public read-only status page (`/view`) with metrics, live map, and player list
 - Admin and limited moderator access tiers
-- Docker Compose deployment with FPS sampler sidecar
+- Built-in server-side FPS history sampler (opt-in via `PALWORLD_FPS_SAMPLER`, no sidecar needed)
 - Built-in documentation powered by Nextra
 
 ## Quick Start

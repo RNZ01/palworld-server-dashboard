@@ -6,8 +6,8 @@ import type { ServerConfig, Player, ConsoleLog, ServerInfo, ServerMetrics, Banne
 
 type ConnectionStatus = 'disconnected' | 'checking' | 'connected'
 
-// FPS history is SERVER-SIDE (owner order 2026-07-13): palworld-fps-sampler.service
-// maintains the authoritative ring (5s cadence) in /run/palworld-metrics and the
+// FPS history is SERVER-SIDE (owner order 2026-07-13): the in-process sampler
+// (lib/fps-sampler.ts) maintains the authoritative ring (5s cadence) and the
 // panel only fetches + displays it — the browser never collects. The window is
 // the sampler's (FPS_WINDOW_MINUTES), delivered per-snapshot as `windowMs`; these
 // helpers sanitize the fetched payload against whatever window the sampler reports.

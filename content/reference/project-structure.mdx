@@ -11,7 +11,7 @@ components/ui/       reusable UI primitives
 content/             Nextra documentation content
 lib/                 shared helpers, state, auth, and types
 public/              static assets
-scripts/             build helpers and FPS sampler
+scripts/             build helpers (search index, theme patch)
 ```
 
 ## Important files
@@ -26,7 +26,8 @@ scripts/             build helpers and FPS sampler
 | `lib/access-tier.ts` | Admin/mod password classification. |
 | `lib/rate-limit.ts` | In-memory failed-login limiter. |
 | `lib/demo.ts` | Demo-mode data. |
+| `lib/fps-sampler.ts` | In-process FPS sampler, started from `instrumentation.ts`. |
+| `lib/fps-ring.ts` | FPS history ring read/write helpers. |
 | `docker-compose.yml` | Recommended deployment stack. |
 | `Dockerfile` | Production image build. |
-| `scripts/fps-sampler/palworld-fps-sampler.py` | FPS history sampler. |
 | `scripts/build-search-index.mjs` | Documentation search index builder. |

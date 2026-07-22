@@ -1,11 +1,13 @@
-// SERVER-ONLY. Shared reader for the FPS ring maintained by
-// palworld-fps-sampler.service (5s cadence, atomic writes). Used by
+// SERVER-ONLY. Shared reader for the FPS ring maintained by the in-process
+// sampler (lib/fps-sampler.ts, enabled via PALWORLD_FPS_SAMPLER; 5s cadence,
+// atomic writes) — or by any external writer pointed at the same file. Used by
 // /api/server-snapshot (the panel's single 15s poll) and /api/fps-history
 // (standalone read — kept for scripting/debug).
 import { readFile } from 'node:fs/promises'
 import type { FpsSample } from '@/lib/types'
 
-const HISTORY_FILE = process.env.PALWORLD_FPS_HISTORY_FILE ?? '/run/palworld-metrics/fps-history.json'
+// Default must stay in sync with the writer's default in lib/fps-sampler.ts.
+const HISTORY_FILE = process.env.PALWORLD_FPS_HISTORY_FILE ?? './data/fps-history.json'
 // The sampler (FPS_WINDOW_MINUTES) is the source of truth for the window and
 // stamps it into the ring file as `windowMs`; we honor that value rather than a
 // hardcoded window, so raising FPS_WINDOW_MINUTES widens the history the panel

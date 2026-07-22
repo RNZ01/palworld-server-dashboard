@@ -4,7 +4,7 @@ title: FPS History
 
 # FPS History
 
-The dashboard's FPS chart is fed by a server-side sampler, not by the browser tab.
+The dashboard's FPS chart is fed by a server-side sampler, not by the browser tab. The sampler now runs inside the dashboard server itself — there is no separate sampler process or container.
 
 ## Why server-side sampling
 
@@ -17,47 +17,79 @@ Benefits:
 - Downtime is shown honestly as missing samples.
 - The data file is small and cheap to maintain.
 
+## Enabling the sampler
+
+Set `PALWORLD_FPS_SAMPLER=true` (or `1`) on the dashboard process. When it is unset, the sampler code is never loaded — zero extra memory or CPU — and the panel only reads the ring file if something else keeps it up to date.
+
+Once enabled, the sampler polls the game's `/v1/api/metrics` every `FPS_SAMPLE_SECONDS` using the dashboard's existing `PALWORLD_REST_URL` and `PALWORLD_ADMIN_PASSWORD` (the alias `PALWORLD_REAL_ADMIN_PASSWORD` is also accepted). It writes samples to the ring file named by `PALWORLD_FPS_HISTORY_FILE`, and the panel reads that same file — one variable serves both ends.
+
+The ring file defaults to `./data/fps-history.json` (`/app/data/fps-history.json` in the container image), which lives inside the existing persisted data volume so history survives restarts.
+
+Behavior preserved from the previous standalone sampler:
+
+- Writes are atomic (temp file plus rename).
+- The ring is pruned to the configured window.
+- When REST is unreachable, nothing is appended, so downtime shows as an honest gap in the graph.
+- The existing ring is reloaded on startup, so history survives dashboard restarts.
+- Logs are quiet — only state transitions are printed.
+
+Note that `DEMO_MODE=1` disables the sampler, because demo mode serves canned FPS data instead.
+
 ## Docker Compose
 
-Docker Compose starts `palworld-fps-sampler` automatically. The sampler writes to a shared volume and the dashboard reads that same file.
+Docker Compose sets `PALWORLD_FPS_SAMPLER=true` on the dashboard service by default, so the in-process sampler starts with the dashboard. The ring file is written to `/app/data/fps-history.json` inside the existing persisted data volume.
 
 No extra setup is required unless you want to change the cadence or window.
 
 ## Bare metal
 
-Use the example systemd unit:
-
-```text
-scripts/fps-sampler/palworld-fps-sampler.service.example
-```
-
-Minimum sampler environment:
+Set `PALWORLD_FPS_SAMPLER=true` on the dashboard process (there is no separate sampler service to install). The sampler reuses the dashboard's REST configuration:
 
 ```env
+PALWORLD_FPS_SAMPLER=true
 PALWORLD_REST_URL=http://127.0.0.1:8212
 PALWORLD_ADMIN_PASSWORD=your-real-palworld-admin-password
-FPS_HISTORY_FILE=/run/palworld-metrics/fps-history.json
+PALWORLD_FPS_HISTORY_FILE=./data/fps-history.json
 ```
 
-Panel environment must point to the same ring file:
-
-```env
-PALWORLD_FPS_HISTORY_FILE=/run/palworld-metrics/fps-history.json
-```
+If the dashboard runs under a hardened systemd unit, make sure the unit can write to the ring file's directory — for example add the data directory to `ReadWritePaths=`.
 
 ## Tuning
 
 | Variable | Default | Range | Description |
 | --- | --- | --- | --- |
+| `PALWORLD_FPS_SAMPLER` | `false` | `true`/`1` | Enables the in-process sampler on the dashboard. |
 | `FPS_SAMPLE_SECONDS` | `5` | `1-60` | How often the sampler polls metrics. |
-| `FPS_WINDOW_MINUTES` | `60` | `5-1440` | How much history to retain. |
+| `FPS_WINDOW_MINUTES` | `60` | `5-1440` | How much history to retain. Stamped into the ring as `windowMs` and read back by the panel, so raising it keeps more history and widens the charted window. |
+| `FPS_SANE_MAX` | `65` | `1-100000` | Discards free-running boot-window readings (1000+ fps) that would otherwise blow out the chart. |
+
+## Logs
+
+Sampler output goes to the dashboard's own stdout with a `[fps-sampler]` prefix (for example `docker compose logs -f palworld-server-dashboard`). Notable lines:
+
+- `started (target ...)`
+- `REST reachable — sampling`
+- `REST unreachable (server down?) — sampling paused, gap will show in history`
+- `REST 401 — check PALWORLD_ADMIN_PASSWORD; retrying`
+- `cannot write <file> ... check PALWORLD_FPS_HISTORY_FILE points somewhere writable; retrying`
 
 ## Empty graph
 
 An empty graph usually means one of these:
 
-- the sampler is not running
-- the sampler cannot reach the REST API
-- `PALWORLD_ADMIN_PASSWORD` is wrong for the sampler
-- `PALWORLD_FPS_HISTORY_FILE` does not match `FPS_HISTORY_FILE`
-- file permissions prevent the dashboard from reading the ring file
+- `PALWORLD_FPS_SAMPLER` is not set to `true`/`1`.
+- No `[fps-sampler]` lines appear in the dashboard logs (the sampler never started).
+- A `cannot write` log line means `PALWORLD_FPS_HISTORY_FILE` points somewhere the dashboard cannot write.
+- A `401` log line means `PALWORLD_ADMIN_PASSWORD` is wrong.
+- `DEMO_MODE=1` is set, which disables the sampler.
+
+## Migrating from the standalone sampler
+
+Earlier releases shipped a separate Python sampler as a sidecar container or systemd service. That sampler is gone — its logic now lives in the dashboard.
+
+If you are upgrading:
+
+- Remove the old sampler sidecar container or systemd unit. Left running, it keeps polling the game's REST API every few seconds for a file the dashboard no longer reads — and if you point both writers at the same custom ring path, they will keep overwriting each other's samples.
+- The default ring path changed from `/run/palworld-metrics/fps-history.json` to `./data/fps-history.json`. The separate `FPS_HISTORY_FILE` variable no longer exists — use `PALWORLD_FPS_HISTORY_FILE` for both writing and reading.
+- Docker Compose users just run `docker compose up -d --remove-orphans`: it drops the old sampler container and starts the in-process sampler in the same step. The old `palworld-fps-metrics` volume is orphaned and can be removed with `docker volume rm`.
+- The history window rebuilds from empty after the switch (the old ring lived at a different path), filling forward over the configured window.

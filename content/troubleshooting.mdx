@@ -45,19 +45,21 @@ Confirm:
 
 ## FPS graph is empty
 
-Check:
+The FPS sampler now runs inside the dashboard process. Check, in order:
 
-- sampler container or service is running
-- sampler logs show successful polling
-- `PALWORLD_ADMIN_PASSWORD` is correct for the sampler
-- dashboard `PALWORLD_FPS_HISTORY_FILE` matches sampler `FPS_HISTORY_FILE`
-- file permissions allow dashboard reads
+- `PALWORLD_FPS_SAMPLER` is set to `true` (or `1`) on the dashboard. When it is unset, the sampler is never loaded and nothing maintains the ring.
+- The dashboard logs show `[fps-sampler]` activity. Look for `REST reachable — sampling`.
+- A `[fps-sampler] cannot write ...` line means `PALWORLD_FPS_HISTORY_FILE` does not point somewhere writable.
+- A `[fps-sampler] REST 401` line means `PALWORLD_ADMIN_PASSWORD` is wrong.
+- `DEMO_MODE=1` disables the sampler; demo mode serves canned data instead.
 
 Docker:
 
 ```bash
-docker compose logs -f palworld-fps-sampler
+docker compose logs -f palworld-server-dashboard
 ```
+
+The `[fps-sampler]` lines appear in the dashboard's own log output.
 
 ## Search says failed to load index
 

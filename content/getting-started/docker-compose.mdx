@@ -4,7 +4,7 @@ title: Docker Compose
 
 # Docker Compose
 
-Docker Compose is the recommended deployment method. It runs the dashboard and the FPS sampler sidecar with persistent volumes.
+Docker Compose is the recommended deployment method. It runs the dashboard with persistent volumes. The FPS sampler now runs inside the dashboard process (enabled by default in Compose via `PALWORLD_FPS_SAMPLER=true`), so there is no separate sampler container.
 
 ## 1. Create `.env`
 
@@ -48,17 +48,17 @@ If you changed `PALWORLD_SERVER_DASHBOARD_PORT`, use that port instead.
 docker compose ps
 ```
 
-Expected services:
+Expected service:
 
 - `palworld-server-dashboard`
-- `palworld-fps-sampler`
 
 ## 4. View logs
 
 ```bash
 docker compose logs -f palworld-server-dashboard
-docker compose logs -f palworld-fps-sampler
 ```
+
+The in-process FPS sampler writes to this same log with a `[fps-sampler]` prefix, so its state transitions appear here too.
 
 ## Updating
 
@@ -67,7 +67,7 @@ docker compose pull
 docker compose up -d
 ```
 
-The panel credential store is kept in the `palworld-dashboard-data` volume. FPS history is kept in the `palworld-fps-metrics` volume.
+The panel credential store and the FPS history ring are both kept in the `palworld-dashboard-data` volume (mounted at `/app/data`).
 
 ## Common Docker networking notes
 

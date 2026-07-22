@@ -41,9 +41,11 @@ A minimal service should:
 - restart on failure
 - write `PANEL_AUTH_FILE` to a persistent writable path
 
+If the unit is hardened (for example with `ProtectSystem=strict`), it also needs write access to any directory the dashboard writes to. Grant it through `ReadWritePaths=`, including the FPS ring file's directory (`PALWORLD_FPS_HISTORY_FILE`, default `./data/`) when the sampler is enabled.
+
 ## FPS sampler
 
-Install `scripts/fps-sampler/palworld-fps-sampler.py` and adapt `scripts/fps-sampler/palworld-fps-sampler.service.example`.
+The FPS sampler runs inside the dashboard server itself — there is no separate process or unit to install. Set `PALWORLD_FPS_SAMPLER=true` in the dashboard environment file to enable it. The sampler reuses the dashboard's REST configuration and writes rolling history to `PALWORLD_FPS_HISTORY_FILE` (default `./data/fps-history.json`), which the panel reads back. See [FPS History](/docs/configuration/fps-history) for details.
 
 ## Journal chat
 

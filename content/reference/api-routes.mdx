@@ -11,7 +11,7 @@ The dashboard uses internal Next.js API routes. These are implementation details
 | `/api/auth-tier` | Resolves a submitted panel password to admin, mod, or invalid. |
 | `/api/palworld/[...path]` | Authenticated proxy to Palworld REST endpoints. |
 | `/api/server-snapshot` | Combined metrics, players, and FPS history request. |
-| `/api/fps-history` | Reads the server-side FPS ring. |
+| `/api/fps-history` | Reads the server-side FPS ring, maintained in-process when `PALWORLD_FPS_SAMPLER` is enabled. |
 | `/api/chat` | Reads recent chat/join/leave events from the server log (a log file, `docker logs`, or journald). |
 | `/api/server-restart` | Writes optional host restart request/cancel files. |
 | `/api/panel-auth/admin-password` | Admin password management endpoint. |

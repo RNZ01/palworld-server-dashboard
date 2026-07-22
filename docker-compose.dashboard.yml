@@ -18,8 +18,17 @@ services:
 
       PALWORLD_REST_URL: ${PALWORLD_REST_URL}
       PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD}
-      PALWORLD_FPS_HISTORY_FILE: /metrics/fps-history.json
       PALWORLD_DOCKER_CONTAINER: ${PALWORLD_DOCKER_CONTAINER:-pro-palworld-1}
+
+      # In-process FPS history sampler (replaced the former fps-sampler
+      # service). The ring lives in the persisted data volume.
+      PALWORLD_FPS_SAMPLER: ${PALWORLD_FPS_SAMPLER:-true}
+      PALWORLD_FPS_HISTORY_FILE: /app/data/fps-history.json
+      FPS_SAMPLE_SECONDS: ${FPS_SAMPLE_SECONDS:-5}
+      FPS_WINDOW_MINUTES: ${FPS_WINDOW_MINUTES:-60}
+      # Raise if you run the server frame-unlocked (>60fps), or every sample
+      # gets discarded as a boot-window artifact.
+      FPS_SANE_MAX: ${FPS_SANE_MAX:-65}
 
       RATE_LIMIT_TRUST_PROXY: "false"
       DEMO_MODE: "0"
@@ -30,60 +39,8 @@ services:
       PUBLIC_VIEW_ANONYMIZE_NAMES: ${PUBLIC_VIEW_ANONYMIZE_NAMES:-false}
     volumes:
       - dashboard-data:/app/data
-      - fps-metrics:/metrics:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker:ro
 
-  fps-sampler:
-    image: python:3.12-alpine
-    container_name: palworld-fps-sampler
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      PALWORLD_REST_URL: ${PALWORLD_REST_URL}
-      PALWORLD_ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD}
-      FPS_HISTORY_FILE: /metrics/fps-history.json
-      FPS_SAMPLE_SECONDS: 5
-      FPS_WINDOW_MINUTES: 60
-    volumes:
-      - fps-metrics:/metrics
-    command:
-      - sh
-      - -c
-      - |
-        cat > /tmp/fps.py <<'PY'
-        import os, json, time, base64, urllib.request
-
-        url = os.environ["PALWORLD_REST_URL"].rstrip("/") + "/v1/api/metrics"
-        out = os.environ.get("FPS_HISTORY_FILE", "/metrics/fps-history.json")
-        interval = int(os.environ.get("FPS_SAMPLE_SECONDS", "5"))
-        window = int(os.environ.get("FPS_WINDOW_MINUTES", "60")) * 60
-        auth = base64.b64encode(("admin:" + os.environ["PALWORLD_ADMIN_PASSWORD"]).encode()).decode()
-
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-
-        while True:
-          try:
-            req = urllib.request.Request(url, headers={"Authorization": "Basic " + auth})
-            data = json.load(urllib.request.urlopen(req, timeout=5))
-            now = int(time.time() * 1000)
-            try:
-              ring = json.load(open(out))
-            except Exception:
-              ring = {"samples": []}
-            ring["samples"] = [s for s in ring.get("samples", []) if now - s.get("timestamp", 0) <= window * 1000]
-            ring["samples"].append({
-              "timestamp": now,
-              "fps": data.get("serverfps"),
-            })
-            ring["updatedAt"] = now
-            open(out, "w").write(json.dumps(ring))
-          except Exception as e:
-            print("fps sampler error:", e, flush=True)
-          time.sleep(interval)
-        PY
-        python /tmp/fps.py
-
 volumes:
   dashboard-data:
-  fps-metrics:

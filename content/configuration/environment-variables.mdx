@@ -32,9 +32,11 @@ title: Environment Variables
 | `PUBLIC_VIEW_ANONYMIZE_NAMES` | `false` | Set to `true` to replace real player names on `/view` with stable pseudonyms (`Player-3f2a`). |
 | `NEXT_PUBLIC_MOD_WIDGET_HIDDEN_USERIDS` | empty | Comma-separated exact user IDs hidden from the mod widget only. |
 | `PALWORLD_RESTART_REQUEST_PATH` | `/run/palworld/restart.request` | File path used by the optional host restart integration. |
-| `PALWORLD_FPS_HISTORY_FILE` | `/run/palworld-metrics/fps-history.json` | FPS ring file read by the panel. |
-| `FPS_SAMPLE_SECONDS` | `5` | FPS sampler cadence. |
-| `FPS_WINDOW_MINUTES` | `60` | FPS history window. |
+| `PALWORLD_FPS_SAMPLER` | `false` | Set to `true` or `1` to run the in-process FPS sampler on the dashboard. When unset, the sampler code is never loaded. `DEMO_MODE=1` disables it. |
+| `PALWORLD_FPS_HISTORY_FILE` | `./data/fps-history.json` | FPS ring file. Both written by the sampler and read by the panel. In the container image this resolves to `/app/data/fps-history.json`. |
+| `FPS_SAMPLE_SECONDS` | `5` | FPS sampler cadence in seconds. Clamped from 1 to 60. |
+| `FPS_WINDOW_MINUTES` | `60` | FPS history window in minutes. Clamped from 5 to 1440. Sets both how much history is retained and how wide the charted window is. |
+| `FPS_SANE_MAX` | `65` | Upper fps bound; readings above it (such as free-running boot-window values) are discarded so they do not blow out the chart. |
 
 ## Example `.env`
 

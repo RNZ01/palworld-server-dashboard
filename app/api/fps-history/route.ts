@@ -1,4 +1,4 @@
-// Standalone read of the server-side FPS ring (palworld-fps-sampler.service).
+// Standalone read of the server-side FPS ring (lib/fps-sampler.ts).
 // The panel itself consumes the ring via /api/server-snapshot since 2026-07-14;
 // this route stays as a direct, panel-authenticated view for scripting/debug.
 import { NextRequest, NextResponse } from 'next/server'
