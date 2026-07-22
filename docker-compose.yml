@@ -30,6 +30,9 @@ services:
       PALWORLD_FPS_HISTORY_FILE: /app/data/fps-history.json
       FPS_SAMPLE_SECONDS: ${FPS_SAMPLE_SECONDS:-5}
       FPS_WINDOW_MINUTES: ${FPS_WINDOW_MINUTES:-60}
+      # Raise if you run the server frame-unlocked (>60fps), or every sample
+      # gets discarded as a boot-window artifact.
+      FPS_SANE_MAX: ${FPS_SANE_MAX:-65}
     volumes:
       # Persist the panel credential store and the FPS history ring across
       # container recreation.
