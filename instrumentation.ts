@@ -1,20 +1,25 @@
 // Next.js instrumentation hook — register() runs once per server process at
 // startup and is skipped during `next build`. It hosts the opt-in in-process
-// FPS sampler (lib/fps-sampler.ts). Every gate is checked BEFORE the dynamic
-// import so that with the sampler disabled its module is never evaluated:
-// unset PALWORLD_FPS_SAMPLER costs zero memory and zero CPU.
+// FPS and player-activity samplers. Every gate is checked BEFORE its dynamic
+// import, so disabled samplers cost zero memory and zero CPU.
 export async function register(): Promise<void> {
-  // The sampler polls the game's REST API and writes the ring file — Node only.
+  // The samplers poll the game's REST API and write local files — Node only.
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
-  // Demo mode serves canned FPS history and never reads the ring
+  // Demo mode serves canned data and never starts the samplers
   // (same check as lib/demo-mode.ts, inlined to keep this module import-free).
   if (process.env.DEMO_MODE === '1') return
 
-  const gate = (process.env.PALWORLD_FPS_SAMPLER ?? '').trim().toLowerCase()
-  if (gate !== '1' && gate !== 'true') return
+  const enabled = (name: string) =>
+    ['1', 'true'].includes((process.env[name] ?? '').trim().toLowerCase())
 
-  // Static specifier: traced into the standalone build, but evaluated only here.
-  const { startFpsSampler } = await import('@/lib/fps-sampler')
-  startFpsSampler()
+  if (enabled('PALWORLD_FPS_SAMPLER')) {
+    const { startFpsSampler } = await import('@/lib/fps-sampler')
+    startFpsSampler()
+  }
+
+  if (enabled('PALWORLD_PLAYER_ACTIVITY')) {
+    const { startPlayerActivitySampler } = await import('@/lib/player-activity')
+    startPlayerActivitySampler()
+  }
 }

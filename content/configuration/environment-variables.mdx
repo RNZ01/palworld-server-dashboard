@@ -37,6 +37,8 @@ title: Environment Variables
 | `FPS_SAMPLE_SECONDS` | `5` | FPS sampler cadence in seconds. Clamped from 1 to 60. |
 | `FPS_WINDOW_MINUTES` | `60` | FPS history window in minutes. Clamped from 5 to 1440. Sets both how much history is retained and how wide the charted window is. |
 | `FPS_SANE_MAX` | `65` | Upper fps bound; readings above it (such as free-running boot-window values) are discarded so they do not blow out the chart. |
+| `PALWORLD_PLAYER_ACTIVITY` | `false` | Set to `true` or `1` to record persistent player join/leave activity. Docker Compose enables it by default. |
+| `PALWORLD_PLAYER_ACTIVITY_FILE` | `./data/player-activity.json` | Persistent activity file. Stores player names and timestamps, retains 30 days or 10,000 events, and returns the latest 500 to the admin panel. |
 
 ## Example `.env`
 

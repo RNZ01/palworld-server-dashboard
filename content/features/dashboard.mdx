@@ -28,10 +28,15 @@ The admin dashboard combines operational panels for:
 
 - server status and health
 - player roster
+- persistent player join/leave activity for admins
 - control cards
 - live console/chat area
 - world settings
 - FPS and performance metrics
+
+The player sidebar includes an Activity view when `PALWORLD_PLAYER_ACTIVITY`
+is enabled. The dashboard records events server-side even when no browser is
+open. It stores player names and timestamps for up to 30 days or 10,000 events.
 
 ## Data refresh
 
