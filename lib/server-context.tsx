@@ -2,7 +2,16 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { buildPalworldProxyHeaders, buildPalworldProxyPath, normalizePlayersPayload } from './palworld'
-import type { ServerConfig, Player, ConsoleLog, ServerInfo, ServerMetrics, BannedPlayer, FpsSample } from './types'
+import type {
+  ServerConfig,
+  Player,
+  ConsoleLog,
+  ServerInfo,
+  ServerMetrics,
+  BannedPlayer,
+  FpsSample,
+  PlayerActivityPayload,
+} from './types'
 
 type ConnectionStatus = 'disconnected' | 'checking' | 'connected'
 
@@ -143,6 +152,7 @@ interface ServerContextType {
   setServerMetrics: (metrics: ServerMetrics | null) => void
   fpsHistory: FpsSample[]
   fpsWindowMs: number
+  playerActivity: PlayerActivityPayload
   settings: Record<string, unknown> | null
   setSettings: (settings: Record<string, unknown> | null) => void
   fetchAllData: () => Promise<void>
@@ -160,6 +170,7 @@ interface SnapshotPayload {
   metrics?: ServerMetrics
   players?: unknown
   fpsHistory?: { samples?: FpsSample[]; windowMs?: number }
+  playerActivity?: PlayerActivityPayload
   error?: string
 }
 
@@ -184,6 +195,11 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   const [serverMetrics, setServerMetricsState] = useState<ServerMetrics | null>(null)
   const [fpsHistory, setFpsHistoryState] = useState<FpsSample[]>([])
   const [fpsWindowMs, setFpsWindowMs] = useState<number>(FPS_HISTORY_DEFAULT_WINDOW_MS)
+  const [playerActivity, setPlayerActivity] = useState<PlayerActivityPayload>({
+    available: false,
+    events: [],
+    updatedAt: null,
+  })
   const [settings, setSettingsState] = useState<Record<string, unknown> | null>(null)
   const [bannedPlayers, setBannedPlayersState] = useState<BannedPlayer[]>([])
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -224,6 +240,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setConnectionStatus('checking')
     setLastConnectionError(null)
     setFpsHistoryState([]) // repopulated from /api/fps-history on connect
+    setPlayerActivity({ available: false, events: [], updatedAt: null })
 
     if (rememberMe) {
       writeStorageValue(STORAGE_KEYS.config, normalizedConfig)
@@ -246,6 +263,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setServerInfoState(null)
     setServerMetricsState(null)
     setFpsHistoryState([])
+    setPlayerActivity({ available: false, events: [], updatedAt: null })
     setSettingsState(null)
     setBannedPlayersState([])
     setNextSnapshotFetchAt(null)
@@ -449,6 +467,9 @@ export function ServerProvider({ children }: { children: ReactNode }) {
         setFpsWindowMs(windowMs)
         setFpsHistoryState(trimFpsHistory(payload.fpsHistory.samples, windowMs))
       }
+      if (payload.playerActivity) {
+        setPlayerActivity(payload.playerActivity)
+      }
 
       addLog({
         type: 'success',
@@ -458,6 +479,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
           serverfps: payload.metrics?.serverfps ?? null,
           players: normalizePlayersPayload(payload.players).length,
           historySamples: payload.fpsHistory?.samples?.length ?? 0,
+          playerActivityEvents: payload.playerActivity?.events.length ?? 0,
         }),
       })
 
@@ -572,6 +594,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setServerMetrics,
     fpsHistory,
     fpsWindowMs,
+    playerActivity,
     settings,
     setSettings,
     fetchAllData,
@@ -600,6 +623,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setServerMetrics,
     fpsHistory,
     fpsWindowMs,
+    playerActivity,
     settings,
     setSettings,
     fetchAllData,

@@ -30,6 +30,10 @@ services:
       # gets discarded as a boot-window artifact.
       FPS_SANE_MAX: ${FPS_SANE_MAX:-65}
 
+      # Persistent admin-only join/leave history.
+      PALWORLD_PLAYER_ACTIVITY: ${PALWORLD_PLAYER_ACTIVITY:-true}
+      PALWORLD_PLAYER_ACTIVITY_FILE: /app/data/player-activity.json
+
       RATE_LIMIT_TRUST_PROXY: "false"
       DEMO_MODE: "0"
 

@@ -62,6 +62,18 @@ export interface FpsSample {
   fps: number
 }
 
+export interface PlayerActivityEvent {
+  timestamp: number
+  type: 'join' | 'leave'
+  name: string
+}
+
+export interface PlayerActivityPayload {
+  available: boolean
+  events: PlayerActivityEvent[]
+  updatedAt: number | null
+}
+
 export interface ConsoleLog {
   id: string
   type: 'success' | 'error' | 'info'

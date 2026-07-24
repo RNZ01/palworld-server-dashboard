@@ -13,6 +13,7 @@
     "postbuild": "node scripts/build-search-index.mjs",
     "start": "next start",
     "postinstall": "node scripts/patch-nextra-theme-docs.mjs",
+    "check:player-activity": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/player-activity-self-check.mts",
     "typegen": "node -e \"require('node:fs').rmSync('.next', { recursive: true, force: true })\" && next typegen",
     "lint": "npm run typecheck",
     "typecheck": "npm run typegen && tsc --noEmit",

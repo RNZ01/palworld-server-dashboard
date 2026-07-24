@@ -12,6 +12,7 @@ import { clientIp, isLockedOut, recordFailure } from '@/lib/rate-limit'
 import { DEMO_MODE, demoFpsHistory, demoMetrics, demoPlayers } from '@/lib/demo-mode'
 import { PALWORLD_PROXY_HEADERS } from '@/lib/palworld'
 import { readFpsRing } from '@/lib/fps-ring'
+import { readPlayerActivity } from '@/lib/player-activity'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -68,17 +69,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [metrics, players, fpsHistory] = await Promise.all([
+    const [metrics, players, fpsHistory, playerActivity] = await Promise.all([
       fetchUpstream(pinned, 'metrics', gameAdminPassword),
       fetchUpstream(pinned, 'players', gameAdminPassword),
       // FPS history is an admin-view feature; the mod tier gets metrics+players only.
       tier === 'admin' ? readFpsRing() : Promise.resolve(null),
+      tier === 'admin' ? readPlayerActivity() : Promise.resolve(null),
     ])
 
     return NextResponse.json({
       metrics,
       players,
       ...(fpsHistory ? { fpsHistory } : {}),
+      ...(playerActivity ? { playerActivity } : {}),
     })
   } catch (error) {
     console.error('Snapshot error:', error)
