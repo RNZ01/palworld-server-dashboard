@@ -30,6 +30,10 @@ Use these carefully. They affect every connected player.
 
 The dashboard can send restart warnings and coordinate a restart request. Palworld itself does not restart the process through REST; see [Server Restart](/docs/operations/server-restart) for the host-side integration.
 
+## Steam build updates
+
+With the optional host worker installed, the admin dashboard compares the installed and public Steam build IDs and can run a backed-up, validated update without granting Docker access to the web container. See [Updates](/docs/operations/updates).
+
 ## Admin-only controls
 
 Server operations are admin-only. The moderator tier cannot call shutdown, stop, settings, restart, or arbitrary endpoints.

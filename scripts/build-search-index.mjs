@@ -57,4 +57,8 @@ for (const file of walk(contentDir)) {
   writePage(routeFromFile(file), titleFromMdx(source, fallback), textFromMdx(source))
 }
 
-execFileSync('pagefind', ['--site', siteDir, '--output-path', 'public/_pagefind'], { stdio: 'inherit' })
+execFileSync(
+  process.execPath,
+  [join('node_modules', 'pagefind', 'lib', 'runner', 'bin.cjs'), '--site', siteDir, '--output-path', 'public/_pagefind'],
+  { stdio: 'inherit' }
+)

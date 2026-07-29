@@ -14,6 +14,7 @@ The dashboard uses internal Next.js API routes. These are implementation details
 | `/api/fps-history` | Reads the server-side FPS ring, maintained in-process when `PALWORLD_FPS_SAMPLER` is enabled. |
 | `/api/chat` | Reads recent chat/join/leave events from the server log (a log file, `docker logs`, or journald). |
 | `/api/server-restart` | Writes optional host restart request/cancel files. |
+| `/api/server-update` | Reads Steam build status and queues admin-only host update checks or installs. |
 | `/api/panel-auth/admin-password` | Admin password management endpoint. |
 | `/api/panel-auth/mod-password` | Moderator password management endpoint. |
 | `/api/demo-mode` | Reports whether runtime demo mode is enabled. |

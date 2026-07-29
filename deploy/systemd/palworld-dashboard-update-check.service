@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Palworld Steam build status
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/palworld-dashboard-update
+ExecStart=/usr/local/sbin/palworld-dashboard-update check
+TimeoutStartSec=10min

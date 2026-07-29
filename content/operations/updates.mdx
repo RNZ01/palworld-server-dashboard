@@ -4,20 +4,22 @@ title: Updates
 
 # Updates
 
-## Docker Compose
+There are two separate update paths:
+
+- **Dashboard updates** replace this web application.
+- **Palworld server updates** compare and install Steam app `2394010`.
+
+## Update the dashboard
+
+### Docker Compose
 
 ```bash
 docker compose pull
 docker compose up -d
-```
-
-Check logs after updating:
-
-```bash
 docker compose logs -f palworld-server-dashboard
 ```
 
-## Source install
+### Source install
 
 ```bash
 git pull
@@ -26,15 +28,125 @@ npm run build
 npm run start
 ```
 
-## Before updating
+For Docker, pin `PALWORLD_SERVER_DASHBOARD_IMAGE` to a known-good tag or digest if you need to roll back.
 
-Recommended checklist:
+## Update the Palworld server from the dashboard
 
-- read release notes or recent commits
-- back up `.env`
-- back up the panel auth file or persistent Docker volume
-- schedule downtime if you are updating during active play
+The admin dashboard can show:
 
-## Rollback
+- the game version reported by Palworld REST
+- the installed Steam build ID
+- the current public Steam build ID
+- update availability, progress, and the final result
+- **Check now** and **Update now** controls
 
-For Docker, pin `PALWORLD_SERVER_DASHBOARD_IMAGE` to a known-good tag or digest. For source installs, roll back the git commit and rebuild.
+This integration is disabled by default. The web process never receives the Docker socket or passwordless sudo. It writes a narrowly scoped request file, while a root-owned host worker performs the update and publishes a status file.
+
+```text
+Admin UI
+  → /run/palworld/update.request
+  → root-owned systemd worker
+  → graceful shutdown + backup + SteamCMD validation + restart
+  → /run/palworld/update.status.json
+  → Admin UI
+```
+
+### Compatibility
+
+The included worker supports the Dockerized `supersunho/palworld-server` image. Its defaults match:
+
+```text
+container:   palworld-server
+server dir:  /home/steam/palworld_server
+backup dir:  /home/steam/backups
+SteamCMD:    /home/steam/steamcmd/steamcmd.sh
+```
+
+The worker requires Docker, Python 3, `tar`, `flock`, and systemd on the host. The game and backup directories must be persistent Docker mounts.
+
+### 1. Install the host worker
+
+Run from a checkout of this repository:
+
+```bash
+sudo install -m 0755 scripts/palworld-update-worker.sh /usr/local/sbin/palworld-dashboard-update
+sudo install -m 0644 deploy/systemd/palworld-dashboard-update.service /etc/systemd/system/
+sudo install -m 0644 deploy/systemd/palworld-dashboard-update.path /etc/systemd/system/
+sudo install -m 0644 deploy/systemd/palworld-dashboard-update-check.service /etc/systemd/system/
+sudo install -m 0644 deploy/systemd/palworld-dashboard-update-check.timer /etc/systemd/system/
+sudo install -m 0644 deploy/systemd/palworld-dashboard-update.tmpfiles /etc/tmpfiles.d/palworld-dashboard-update.conf
+sudo install -m 0644 deploy/systemd/palworld-dashboard-update.env.example /etc/default/palworld-dashboard-update
+
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/palworld-dashboard-update.conf
+sudo systemctl daemon-reload
+sudo systemctl enable --now palworld-dashboard-update.path
+sudo systemctl enable --now palworld-dashboard-update-check.timer
+```
+
+Edit `/etc/default/palworld-dashboard-update` if the container name or in-container paths differ.
+
+The supplied tmpfiles rule grants UID/GID `1001` access to `/run/palworld`, matching the dashboard container's `nextjs` user. Adjust the rule before installation if your dashboard runs under another UID.
+
+### 2. Share the request directory with the dashboard
+
+Add these settings to the dashboard service:
+
+```yaml
+services:
+  palworld-server-dashboard:
+    environment:
+      PALWORLD_UPDATE_ENABLED: "true"
+      PALWORLD_UPDATE_REQUEST_PATH: /run/palworld/update.request
+      PALWORLD_UPDATE_STATUS_PATH: /run/palworld/update.status.json
+    volumes:
+      - /run/palworld:/run/palworld
+```
+
+Recreate the dashboard after changing its environment or mounts:
+
+```bash
+docker compose up -d
+```
+
+### 3. Run the first check
+
+The timer checks every six hours. To populate status immediately:
+
+```bash
+sudo systemctl start palworld-dashboard-update-check.service
+sudo systemctl status palworld-dashboard-update-check.service
+```
+
+You can also use **Check now** in the Server Updates card.
+
+### Update safety
+
+When **Update now** is confirmed, the worker:
+
+1. compares the installed and public Steam build IDs
+2. warns connected players
+3. disables the container restart policy temporarily
+4. requests Palworld's graceful REST shutdown
+5. creates and validates a stopped-state world/configuration backup
+6. runs SteamCMD in a short-lived helper container
+7. preserves stale Steam manifest state and retries cleanly if a delta manifest is inaccessible
+8. verifies the installed build ID
+9. restores the restart policy, starts the server, and waits for health checks
+
+The control is admin-only. Moderator credentials receive `403 Forbidden`.
+
+### Troubleshooting
+
+Inspect the worker and timer:
+
+```bash
+journalctl -u palworld-dashboard-update.service -n 200 --no-pager
+journalctl -u palworld-dashboard-update-check.service -n 200 --no-pager
+systemctl list-timers palworld-dashboard-update-check.timer
+```
+
+Inspect the latest machine-readable status:
+
+```bash
+cat /run/palworld/update.status.json
+```

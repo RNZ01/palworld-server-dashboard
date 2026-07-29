@@ -1,0 +1,10 @@
+[Unit]
+Description=Process a Palworld dashboard update request
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/palworld-dashboard-update
+ExecStart=/usr/local/sbin/palworld-dashboard-update request
+TimeoutStartSec=45min

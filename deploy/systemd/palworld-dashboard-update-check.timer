@@ -1,0 +1,12 @@
+[Unit]
+Description=Check the public Palworld Steam build every six hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=6h
+RandomizedDelaySec=5min
+Persistent=true
+Unit=palworld-dashboard-update-check.service
+
+[Install]
+WantedBy=timers.target

@@ -77,7 +77,7 @@ export function DashboardHeader({ activeTab = 'dashboard', onTabChange, onPlayer
                 </span>
                 {serverInfo?.version && (
                   <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                    v{serverInfo.version}
+                    {serverInfo.version.startsWith('v') ? serverInfo.version : `v${serverInfo.version}`}
                   </span>
                 )}
               </div>

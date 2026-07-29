@@ -14,10 +14,11 @@
     "start": "next start",
     "postinstall": "node scripts/patch-nextra-theme-docs.mjs",
     "check:player-activity": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/player-activity-self-check.mts",
+    "check:server-update": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/server-update-self-check.mts",
     "typegen": "node -e \"require('node:fs').rmSync('.next', { recursive: true, force: true })\" && next typegen",
     "lint": "npm run typecheck",
     "typecheck": "npm run typegen && tsc --noEmit",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run check:player-activity && npm run check:server-update && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -32,7 +33,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.564.0",
-    "next": "^16.2.0",
+    "next": "^16.2.12",
     "nextra": "^4.6.1",
     "nextra-theme-docs": "^4.6.1",
     "react": "19.2.4",
@@ -46,7 +47,8 @@
     ]
   },
   "overrides": {
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",

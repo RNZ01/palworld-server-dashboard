@@ -37,6 +37,10 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Next's standalone tracer includes Sharp's JavaScript and native addon but can
+# omit libvips shared libraries. Copy the platform packages installed for the
+# target architecture so image processing works in the production runner.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
 
 USER nextjs
 

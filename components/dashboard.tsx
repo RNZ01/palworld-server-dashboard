@@ -12,6 +12,7 @@ import { StatusBar } from '@/components/status-bar'
 import {
   AnnouncementCard,
   ServerManagementCard,
+  ServerUpdateCard,
   BanManagementCard,
   MetricsCard,
   SettingsCard
@@ -92,9 +93,10 @@ export function Dashboard() {
 
                         {/* Bottom row: config/controls sized to their own content — lines
                             up with the Announcements card (Config Snapshot JSON flexes). */}
-                        <div className="mt-4 grid gap-4 [grid-auto-rows:1fr] md:grid-cols-2 xl:grid-cols-3">
+                        <div className="mt-4 grid gap-4 [grid-auto-rows:1fr] md:grid-cols-2 xl:grid-cols-4">
                           <SettingsCard />
                           <ServerManagementCard />
+                          <ServerUpdateCard />
                           <AnnouncementCard />
                         </div>
                       </div>

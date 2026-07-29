@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for Palworld dashboard update requests
+
+[Path]
+PathExists=/run/palworld/update.request
+Unit=palworld-dashboard-update.service
+
+[Install]
+WantedBy=multi-user.target

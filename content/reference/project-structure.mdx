@@ -12,6 +12,7 @@ content/             Nextra documentation content
 lib/                 shared helpers, state, auth, and types
 public/              static assets
 scripts/             build helpers (search index, theme patch)
+deploy/systemd/      optional host update worker units
 ```
 
 ## Important files
@@ -31,3 +32,4 @@ scripts/             build helpers (search index, theme patch)
 | `docker-compose.yml` | Recommended deployment stack. |
 | `Dockerfile` | Production image build. |
 | `scripts/build-search-index.mjs` | Documentation search index builder. |
+| `scripts/palworld-update-worker.sh` | Optional root-owned Palworld Steam update worker. |

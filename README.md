@@ -38,6 +38,7 @@ Sensitive data in the dashboard screenshot below has been blurred.
 - Rolling server-side FPS history
 - Online player roster with kick, ban, and unban actions
 - Admin announcements and common server-operation controls
+- Optional admin-only Steam build checks and backed-up Palworld server updates
 - Live map with player positions and optional map markers
 - Optional public read-only status page (`/view`) with metrics, live map, and player list
 - Admin and limited moderator access tiers

@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useCallback, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { InfoPanel } from '@/components/status-bar'
 import { useServer } from '@/lib/server-context'
 import { buildPalworldProxyHeaders } from '@/lib/palworld'
+import { isServerUpdateActive, type ServerUpdateAction, type ServerUpdateStatus } from '@/lib/server-update'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,7 +27,10 @@ import {
   SaveIcon,
   PowerIcon,
   StopCircleIcon,
-  SearchIcon
+  SearchIcon,
+  DownloadIcon,
+  RefreshCwIcon,
+  ShieldAlertIcon,
 } from 'lucide-react'
 
 // The visible window is the sampler's (FPS_WINDOW_MINUTES), delivered per-snapshot
@@ -522,6 +526,236 @@ export function ServerManagementCard() {
             >
               {isProcessing ? <Spinner className="w-4 h-4 mr-2" /> : null}
               {confirmAction === 'shutdown' ? (isProcessing ? 'Shutting down...' : 'Shutdown') : (isProcessing ? 'Stopping...' : 'Force Stop')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+const UPDATE_PHASE_LABEL: Record<ServerUpdateStatus['phase'], string> = {
+  disabled: 'Not configured',
+  idle: 'Not checked',
+  queued: 'Queued',
+  checking: 'Checking',
+  available: 'Update available',
+  'up-to-date': 'Up to date',
+  announcing: 'Warning players',
+  stopping: 'Stopping server',
+  'backing-up': 'Backing up',
+  downloading: 'Installing update',
+  restarting: 'Restarting',
+  complete: 'Update complete',
+  failed: 'Update failed',
+}
+
+const UPDATE_PHASE_CLASS: Record<ServerUpdateStatus['phase'], string> = {
+  disabled: 'border-border bg-muted/30 text-muted-foreground',
+  idle: 'border-border bg-muted/30 text-muted-foreground',
+  queued: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200',
+  checking: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200',
+  available: 'border-amber-500/50 bg-amber-500/12 text-amber-200',
+  'up-to-date': 'border-emerald-500/45 bg-emerald-500/10 text-emerald-200',
+  announcing: 'border-amber-500/50 bg-amber-500/12 text-amber-200',
+  stopping: 'border-amber-500/50 bg-amber-500/12 text-amber-200',
+  'backing-up': 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200',
+  downloading: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200',
+  restarting: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200',
+  complete: 'border-emerald-500/45 bg-emerald-500/10 text-emerald-200',
+  failed: 'border-red-500/50 bg-red-500/12 text-red-200',
+}
+
+function buildLabel(buildId: string | null | undefined) {
+  return buildId || 'Unknown'
+}
+
+export function ServerUpdateCard() {
+  const { config, serverInfo } = useServer()
+  const [status, setStatus] = useState<ServerUpdateStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [requesting, setRequesting] = useState<ServerUpdateAction | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const loadStatus = useCallback(async () => {
+    if (!config) return
+
+    try {
+      const response = await fetch('/api/server-update', {
+        headers: buildPalworldProxyHeaders(config),
+        cache: 'no-store',
+      })
+      const data = (await response.json()) as ServerUpdateStatus & { error?: string }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to read update status')
+      }
+      setStatus(data)
+    } catch (error) {
+      setStatus((current) => ({
+        configured: current?.configured ?? false,
+        phase: 'failed',
+        installedBuildId: current?.installedBuildId ?? null,
+        latestBuildId: current?.latestBuildId ?? null,
+        updateAvailable: current?.updateAvailable ?? null,
+        message: error instanceof Error ? error.message : 'Failed to read update status',
+        progress: null,
+        checkedAt: current?.checkedAt ?? null,
+        requestedAt: current?.requestedAt ?? null,
+        startedAt: current?.startedAt ?? null,
+        completedAt: current?.completedAt ?? null,
+        updatedAt: Date.now(),
+      }))
+    } finally {
+      setLoading(false)
+    }
+  }, [config])
+
+  useEffect(() => {
+    void loadStatus()
+    const timer = window.setInterval(() => void loadStatus(), 10_000)
+    return () => window.clearInterval(timer)
+  }, [loadStatus])
+
+  const requestAction = async (action: ServerUpdateAction) => {
+    if (!config) return
+    setRequesting(action)
+    try {
+      const headers = new Headers(buildPalworldProxyHeaders(config))
+      headers.set('Content-Type', 'application/json')
+      const response = await fetch('/api/server-update', {
+        method: 'POST',
+        headers,
+        cache: 'no-store',
+        body: JSON.stringify({
+          action,
+          waittime: 30,
+          message: 'Server update starting in 30 seconds. Please find a safe spot and reconnect shortly.',
+        }),
+      })
+      const data = (await response.json()) as { error?: string; status?: ServerUpdateStatus }
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to queue ${action}`)
+      }
+      if (data.status) setStatus(data.status)
+      toast.success(action === 'update' ? 'Server update queued' : 'Update check queued')
+      setConfirmOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to queue ${action}`)
+    } finally {
+      setRequesting(null)
+    }
+  }
+
+  const active = status ? isServerUpdateActive(status) : false
+  const configured = status?.configured === true
+  const checkedAt = status?.checkedAt
+    ? new Date(status.checkedAt).toLocaleString()
+    : 'Never'
+  const phase = status?.phase ?? 'idle'
+
+  return (
+    <>
+      <PanelSection
+        title="Server Updates"
+        subtitle="Steam Build Control"
+        status={active ? 'pending' : status?.phase === 'complete' || status?.phase === 'up-to-date' ? 'complete' : 'active'}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.12em]', UPDATE_PHASE_CLASS[phase])}>
+            {loading && !status ? 'Loading' : UPDATE_PHASE_LABEL[phase]}
+          </Badge>
+          <span className="font-mono text-[10px] text-muted-foreground">Checked: {checkedAt}</span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+          <div className="rounded border border-border/60 bg-muted/20 p-2">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Game version</p>
+            <p className="mt-1 truncate font-mono text-foreground">{serverInfo?.version || 'Unknown'}</p>
+          </div>
+          <div className="rounded border border-border/60 bg-muted/20 p-2">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Installed build</p>
+            <p className="mt-1 truncate font-mono text-foreground">{buildLabel(status?.installedBuildId)}</p>
+          </div>
+          <div className="rounded border border-border/60 bg-muted/20 p-2">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Public build</p>
+            <p className="mt-1 truncate font-mono text-foreground">{buildLabel(status?.latestBuildId)}</p>
+          </div>
+        </div>
+
+        {typeof status?.progress === 'number' && active && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+              <span>Progress</span>
+              <span>{status.progress.toFixed(1)}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500"
+                style={{ width: `${status.progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="min-h-8 text-[11px] leading-relaxed text-muted-foreground">
+          {status?.message ?? 'Loading host update status...'}
+        </p>
+
+        {!configured && (
+          <div className="flex gap-2 rounded border border-amber-500/30 bg-amber-500/8 p-2 text-[10px] leading-relaxed text-amber-200">
+            <ShieldAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Install the host update worker and enable the shared request/status paths before using these controls.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full min-w-0"
+            disabled={!configured || active || requesting !== null}
+            onClick={() => requestAction('check')}
+          >
+            {requesting === 'check' || phase === 'checking' ? (
+              <Spinner className="mr-2 h-4 w-4" />
+            ) : (
+              <RefreshCwIcon className="mr-2 h-4 w-4" />
+            )}
+            Check now
+          </Button>
+          <Button
+            type="button"
+            className="w-full min-w-0"
+            disabled={!configured || active || requesting !== null || status?.updateAvailable !== true}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {requesting === 'update' ? (
+              <Spinner className="mr-2 h-4 w-4" />
+            ) : (
+              <DownloadIcon className="mr-2 h-4 w-4" />
+            )}
+            Update now
+          </Button>
+        </div>
+      </PanelSection>
+
+      <AlertDialog open={confirmOpen} onOpenChange={(open) => !requesting && setConfirmOpen(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update Palworld Server</AlertDialogTitle>
+            <AlertDialogDescription>
+              Players will receive a 30-second warning. The host worker will shut the server down cleanly, create a
+              backup, install and validate Steam build {buildLabel(status?.latestBuildId)}, then restart the server.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={requesting === 'update'}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={requesting === 'update'}
+              onClick={() => requestAction('update')}
+            >
+              {requesting === 'update' && <Spinner className="mr-2 h-4 w-4" />}
+              Start update
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
